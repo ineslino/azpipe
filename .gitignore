@@ -1,0 +1,7 @@
+azpipe
+dist/
+*.exe
+*.test
+*.out
+.env
+.claude-flow/

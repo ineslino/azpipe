@@ -14,9 +14,12 @@ var authCmd = &cobra.Command{
 
 var authSetCmd = &cobra.Command{
 	Use:   "set",
-	Short: "Store a PAT and optional default org/project in ~/.config/azpipe/config.yaml",
+	Short: "Store legacy PAT config and optional default org/project",
 	Example: `  azpipe auth set --pat mytoken123 --org myorg --project myproject
-  azpipe auth set --pat mytoken123   # org/project can also come from AZDO_ORG / --org flag`,
+
+  # Preferred: keep the PAT outside the config file
+  export AZDO_PAT=mytoken123
+  export AZDO_ORG=myorg`,
 	RunE: runAuthSet,
 }
 
@@ -27,7 +30,7 @@ var (
 )
 
 func init() {
-	authSetCmd.Flags().StringVar(&authFlagPAT, "pat", "", "Personal Access Token")
+	authSetCmd.Flags().StringVar(&authFlagPAT, "pat", "", "Personal Access Token (legacy persisted config; prefer AZDO_PAT)")
 	authSetCmd.Flags().StringVar(&authFlagOrg, "org", "", "Default Azure DevOps org name")
 	authSetCmd.Flags().StringVar(&authFlagProject, "project", "", "Default Azure DevOps project")
 	authCmd.AddCommand(authSetCmd)
@@ -43,7 +46,7 @@ func runAuthSet(_ *cobra.Command, _ []string) error {
 		if err := config.SetPAT(authFlagPAT); err != nil {
 			return fmt.Errorf("save PAT: %w", err)
 		}
-		fmt.Println("PAT saved.")
+		fmt.Println("PAT saved to legacy config. Prefer AZDO_PAT or external credential injection.")
 	}
 	if authFlagOrg != "" {
 		if err := config.SetOrg(authFlagOrg); err != nil {

@@ -58,5 +58,9 @@ func save() error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	return viper.WriteConfigAs(filepath.Join(dir, configFile+"."+configType))
+	path := filepath.Join(dir, configFile+"."+configType)
+	if err := viper.WriteConfigAs(path); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
 }

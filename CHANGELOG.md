@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Interactive `azpipe` pipeline runner with catalog filtering, multi-selection,
+  branch and `PLAN` selection, preview review, confirmation, and run monitoring
+- `azpipe demo` offline runner with local fixtures and no Azure DevOps client or runs
 - `azpipe projects list` — list all projects in an org
 - `azpipe repos list` — list repositories in a project
 - `azpipe repos pipelines <repo>` — show pipelines linked to a repository
@@ -18,3 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `azpipe auth set` — store PAT and default org/project in config file
 - `--output table|json|plain` global flag for all listing commands
 - `--org`, `--project` global flags; `AZDO_PAT`/`AZDO_ORG` env var support
+
+### Changed
+- Every persisted `~/.config/azpipe/config.yaml` is written with `0600` permissions
+- `azpipe auth set --pat` is documented and labelled as legacy; `AZDO_PAT` or external
+  credential injection is recommended

@@ -63,6 +63,125 @@ func TestAppWorkflow_ReviewStartsPendingBeforePreviewCompletes(t *testing.T) {
 	}
 }
 
+func TestAppWorkflow_RejectsStaleContextResultAndWrongTarget(t *testing.T) {
+	clients := map[string]*azdo.MockClient{
+		"first":  {Pipelines: []azdo.Pipeline{{ID: 1, Name: "first pipeline"}}},
+		"second": {Pipelines: []azdo.Pipeline{{ID: 2, Name: "second pipeline"}}},
+	}
+	model := NewBootstrapApp(func(organization string) (azdo.Client, error) {
+		return clients[organization], nil
+	}, ContextDefaults{})
+
+	model.context.organization.SetValue("first")
+	model.context.project.SetValue("A")
+	updated, firstCmd := model.Update(contextSubmitMsg{organization: "first", project: "A"})
+	model = updated.(AppModel)
+	model.context.organization.SetValue("second")
+	model.context.project.SetValue("B")
+	updated, secondCmd := model.Update(contextSubmitMsg{organization: "second", project: "B"})
+	model = updated.(AppModel)
+
+	updated, _ = model.Update(firstCmd())
+	model = updated.(AppModel)
+	if model.Screen() != ScreenContext {
+		t.Fatalf("stale context result changed screen to %v", model.Screen())
+	}
+
+	secondMsg := secondCmd().(contextLoadedMsg)
+	wrongTarget := secondMsg
+	wrongTarget.token.target = "forged-context-target"
+	updated, _ = model.Update(wrongTarget)
+	model = updated.(AppModel)
+	if model.Screen() != ScreenContext {
+		t.Fatalf("wrong context target changed screen to %v", model.Screen())
+	}
+
+	model.context.project.SetValue("EDITED")
+	updated, _ = model.Update(secondMsg)
+	model = updated.(AppModel)
+	if model.Screen() != ScreenContext {
+		t.Fatalf("result for edited context changed screen to %v", model.Screen())
+	}
+	model.context.project.SetValue("B")
+	updated, _ = model.Update(secondMsg)
+	model = updated.(AppModel)
+	if model.Screen() != ScreenCatalog || !strings.Contains(model.View(), "second pipeline") {
+		t.Fatalf("active context result not applied:\n%s", model.View())
+	}
+}
+
+func TestAppWorkflow_RejectsStalePreviewAndWrongTarget(t *testing.T) {
+	model := NewApp(&azdo.MockClient{}, "DEVCLD", appFixtures())
+	model, _ = pressApp(t, model, " ")
+	model, cmd := pressApp(t, model, "enter")
+	model, oldPreviewCmd := runAppCmd(t, model, cmd)
+	model, _ = pressApp(t, model, "esc")
+	model, cmd = pressApp(t, model, "enter")
+	model, currentPreviewCmd := runAppCmd(t, model, cmd)
+
+	updated, _ := model.Update(oldPreviewCmd())
+	model = updated.(AppModel)
+	if !strings.Contains(model.View(), "CHECK") {
+		t.Fatalf("stale preview changed active review:\n%s", model.View())
+	}
+
+	currentMsg := currentPreviewCmd().(previewFinishedMsg)
+	wrongTarget := currentMsg
+	wrongTarget.token.target = "forged-preview-target"
+	updated, _ = model.Update(wrongTarget)
+	model = updated.(AppModel)
+	if !strings.Contains(model.View(), "CHECK") {
+		t.Fatalf("wrong preview target changed active review:\n%s", model.View())
+	}
+
+	model.review.reviews[0].Selection.Branch = "other"
+	updated, _ = model.Update(currentMsg)
+	model = updated.(AppModel)
+	if !strings.Contains(model.View(), "CHECK") {
+		t.Fatalf("preview changed a review whose selection target was edited:\n%s", model.View())
+	}
+	model.review.reviews[0].Selection.Branch = "main"
+	updated, _ = model.Update(currentMsg)
+	model = updated.(AppModel)
+	if !strings.Contains(model.View(), "READY") {
+		t.Fatalf("active preview result not applied:\n%s", model.View())
+	}
+}
+
+func TestAppWorkflow_RejectsStaleQueueConfirmationAndWrongTarget(t *testing.T) {
+	mock := &azdo.MockClient{}
+	model := NewApp(mock, "DEVCLD", appFixtures())
+	model, _ = pressApp(t, model, " ")
+	model, cmd := pressApp(t, model, "enter")
+	model, cmd = runAppCmd(t, model, cmd)
+	model, _ = runAppCmd(t, model, cmd)
+	model = typeApp(t, model, "EXECUTAR")
+	model, confirmCmd := pressApp(t, model, "enter")
+
+	confirmMsg := confirmCmd().(queueConfirmedMsg)
+	wrongTarget := confirmMsg
+	wrongTarget.token.target = "forged-queue-target"
+	updated, queueCmd := model.Update(wrongTarget)
+	model = updated.(AppModel)
+	if model.Screen() != ScreenReview || queueCmd != nil {
+		t.Fatalf("wrong queue target advanced to %v with command %T", model.Screen(), queueCmd)
+	}
+
+	model.review.confirmation.SetValue("")
+	updated, queueCmd = model.Update(confirmMsg)
+	model = updated.(AppModel)
+	if model.Screen() != ScreenReview || queueCmd != nil {
+		t.Fatalf("stale confirmation text advanced to %v with command %T", model.Screen(), queueCmd)
+	}
+	model.review.confirmation.SetValue(confirmationValue)
+	model, _ = pressApp(t, model, "esc")
+	updated, queueCmd = model.Update(confirmMsg)
+	model = updated.(AppModel)
+	if model.Screen() != ScreenCatalog || queueCmd != nil || len(mock.QueueRequests) != 0 {
+		t.Fatalf("stale queue confirmation was accepted: screen=%v cmd=%T requests=%d", model.Screen(), queueCmd, len(mock.QueueRequests))
+	}
+}
+
 func TestAppWorkflow_PreviewErrorHidesConfirmationAndQuitIsFailClosed(t *testing.T) {
 	mock := &azdo.MockClient{PreviewErr: errors.New("invalid YAML")}
 	model := NewApp(mock, "DEVCLD", appFixtures())
@@ -180,12 +299,13 @@ func TestExecution_RefreshesNonTerminalRunsAndShowsPartialFailure(t *testing.T) 
 			{Review: domainrunner.Review{Selection: selectionB, State: domainrunner.ReviewReady}, Err: errors.New("permission denied")},
 		},
 	}
+	model.startOperation(runsOperationTarget(model.execution.runs))
 
 	before := model.View()
 	if !strings.Contains(before, "https://example.test/runs/9001") || !strings.Contains(before, "ERROR orders deploy: permission denied") {
 		t.Fatalf("execution must expose URL and partial queue failure:\n%s", before)
 	}
-	updated, cmd := model.Update(refreshTickMsg{})
+	updated, cmd := model.Update(refreshTickMsg{token: model.active})
 	model = updated.(AppModel)
 	model, next := runAppCmd(t, model, cmd)
 	if next != nil {
@@ -193,6 +313,55 @@ func TestExecution_RefreshesNonTerminalRunsAndShowsPartialFailure(t *testing.T) 
 	}
 	if !strings.Contains(model.View(), "COMPLETED billing deploy succeeded") {
 		t.Fatalf("refreshed terminal run not rendered:\n%s", model.View())
+	}
+}
+
+func TestExecution_RetriesAfterTransientRefreshErrorUntilCompleted(t *testing.T) {
+	mock := &azdo.MockClient{
+		QueuedRuns: []azdo.PipelineRun{{ID: 9001, State: "inProgress", WebURL: "https://example.test/runs/9001"}},
+		RunByID: map[int]azdo.PipelineRun{
+			9001: {ID: 9001, State: "completed", Result: "succeeded", WebURL: "https://example.test/runs/9001"},
+		},
+	}
+	model := NewApp(mock, "DEVCLD", appFixtures())
+	model, _ = pressApp(t, model, " ")
+	model, cmd := pressApp(t, model, "enter")
+	model, cmd = runAppCmd(t, model, cmd)
+	model, _ = runAppCmd(t, model, cmd)
+	model = typeApp(t, model, "EXECUTAR")
+	model, cmd = pressApp(t, model, "enter")
+	model, cmd = runAppCmd(t, model, cmd)
+	model, _ = runAppCmd(t, model, cmd)
+
+	mock.GetRunErr = errors.New("temporary timeout")
+	updated, refreshCmd := model.Update(refreshTickMsg{token: model.active})
+	model = updated.(AppModel)
+	model, retryTick := runAppCmd(t, model, refreshCmd)
+	if retryTick == nil || !strings.Contains(model.View(), "temporary timeout") {
+		t.Fatalf("transient refresh error must remain visible and schedule retry:\n%s", model.View())
+	}
+
+	mock.GetRunErr = nil
+	updated, refreshCmd = model.Update(refreshTickMsg{token: model.active})
+	model = updated.(AppModel)
+	model, next := runAppCmd(t, model, refreshCmd)
+	if next != nil || !strings.Contains(model.View(), "COMPLETED billing deploy succeeded") {
+		t.Fatalf("retry did not reach terminal run:\n%s", model.View())
+	}
+}
+
+func TestReview_RendersPipelineIDAndEffectiveParameters(t *testing.T) {
+	model := NewApp(&azdo.MockClient{}, "DEVCLD", appFixtures())
+	model, _ = pressApp(t, model, "p")
+	model, cmd := pressApp(t, model, "enter")
+	model, cmd = runAppCmd(t, model, cmd)
+	model, _ = runAppCmd(t, model, cmd)
+
+	view := model.View()
+	for _, want := range []string{"101", "PLAN", "main", "planOnly=true"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("review missing %q:\n%s", want, view)
+		}
 	}
 }
 

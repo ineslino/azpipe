@@ -13,14 +13,18 @@ import (
 const refreshInterval = 5 * time.Second
 
 type queueFinishedMsg struct {
-	runs []domainrunner.RunResult
-	err  error
+	token operationToken
+	runs  []domainrunner.RunResult
+	err   error
 }
 
-type refreshTickMsg struct{}
+type refreshTickMsg struct {
+	token operationToken
+}
 
 type refreshFinishedMsg struct {
-	runs []domainrunner.RunResult
+	token operationToken
+	runs  []domainrunner.RunResult
 }
 
 type executionModel struct {
@@ -33,26 +37,32 @@ func newExecutionModel() executionModel {
 	return executionModel{}
 }
 
-func queueReviews(service domainrunner.Service, reviews []domainrunner.Review) tea.Cmd {
+func queueReviews(service domainrunner.Service, reviews []domainrunner.Review, token operationToken) tea.Cmd {
 	return func() tea.Msg {
 		runs, err := service.QueueAll(context.Background(), reviews, 4)
-		return queueFinishedMsg{runs: runs, err: err}
+		return queueFinishedMsg{token: token, runs: runs, err: err}
 	}
 }
 
-func refreshRuns(service domainrunner.Service, runs []domainrunner.RunResult) tea.Cmd {
+func refreshRuns(service domainrunner.Service, runs []domainrunner.RunResult, token operationToken) tea.Cmd {
 	return func() tea.Msg {
-		return refreshFinishedMsg{runs: service.Refresh(context.Background(), runs, 4)}
+		retryable := append([]domainrunner.RunResult(nil), runs...)
+		for index := range retryable {
+			if retryable[index].Run.ID != 0 && retryable[index].Run.State != "completed" {
+				retryable[index].Err = nil
+			}
+		}
+		return refreshFinishedMsg{token: token, runs: service.Refresh(context.Background(), retryable, 4)}
 	}
 }
 
-func scheduleRefresh() tea.Cmd {
-	return tea.Tick(refreshInterval, func(time.Time) tea.Msg { return refreshTickMsg{} })
+func scheduleRefresh(token operationToken) tea.Cmd {
+	return tea.Tick(refreshInterval, func(time.Time) tea.Msg { return refreshTickMsg{token: token} })
 }
 
 func hasNonTerminalRun(runs []domainrunner.RunResult) bool {
 	for _, result := range runs {
-		if result.Err == nil && result.Run.ID != 0 && result.Run.State != "completed" {
+		if result.Run.ID != 0 && result.Run.State != "completed" {
 			return true
 		}
 	}
@@ -67,7 +77,11 @@ func (m executionModel) view() string {
 	for _, result := range m.runs {
 		name := result.Review.Selection.Pipeline.Name
 		if result.Err != nil {
-			lines = append(lines, fmt.Sprintf("ERROR %s: %v", name, result.Err))
+			line := fmt.Sprintf("ERROR %s: %v", name, result.Err)
+			if result.Run.WebURL != "" {
+				line += " " + result.Run.WebURL
+			}
+			lines = append(lines, line)
 			continue
 		}
 		line := fmt.Sprintf("%s %s", strings.ToUpper(result.Run.State), name)

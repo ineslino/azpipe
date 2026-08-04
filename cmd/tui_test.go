@@ -1,12 +1,23 @@
 package cmd
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ineslino/azpipe/internal/azdo"
 	tuirunner "github.com/ineslino/azpipe/internal/tui/runner"
 )
+
+type failedFinalModel struct {
+	err error
+}
+
+func (m failedFinalModel) Init() tea.Cmd                       { return nil }
+func (m failedFinalModel) Update(tea.Msg) (tea.Model, tea.Cmd) { return m, nil }
+func (m failedFinalModel) View() string                        { return "" }
+func (m failedFinalModel) ExecutionError() error               { return m.err }
 
 func TestDemoCommand_DoesNotCreateClient(t *testing.T) {
 	oldFactory := tuiClientFactory
@@ -68,5 +79,18 @@ func TestRootCommand_DefersClientCreationToBootstrapContext(t *testing.T) {
 	}
 	if factoryCalls != 0 {
 		t.Fatalf("client factory called %d times before context submit, want 0", factoryCalls)
+	}
+}
+
+func TestRunTUI_ReturnsPartialQueueFailureFromFinalModel(t *testing.T) {
+	oldProgram := runProgram
+	t.Cleanup(func() { runProgram = oldProgram })
+	runProgram = func(tea.Model) (tea.Model, error) {
+		return failedFinalModel{err: errors.New("queue billing: permission denied")}, nil
+	}
+
+	err := runTUI(tuirunner.NewDemoApp())
+	if err == nil || !strings.Contains(err.Error(), "permission denied") {
+		t.Fatalf("runTUI error = %v, want partial queue failure", err)
 	}
 }

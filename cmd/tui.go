@@ -16,9 +16,19 @@ var tuiClientFactory tuirunner.ClientFactory = func(organization string) (azdo.C
 	return azdo.New(toOrgURL(organization), pat), nil
 }
 
+var runProgram = func(model tea.Model) (tea.Model, error) {
+	return tea.NewProgram(model, tea.WithAltScreen()).Run()
+}
+
 var runTUI = func(model tea.Model) error {
-	_, err := tea.NewProgram(model, tea.WithAltScreen()).Run()
-	return err
+	finalModel, err := runProgram(model)
+	if err != nil {
+		return err
+	}
+	if result, ok := finalModel.(interface{ ExecutionError() error }); ok {
+		return result.ExecutionError()
+	}
+	return nil
 }
 
 var demoCmd = &cobra.Command{

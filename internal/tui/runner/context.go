@@ -25,10 +25,12 @@ type contextSubmitMsg struct {
 }
 
 type contextLoadedMsg struct {
-	client    azdo.Client
-	project   string
-	pipelines []azdo.Pipeline
-	err       error
+	token        operationToken
+	organization string
+	client       azdo.Client
+	project      string
+	pipelines    []azdo.Pipeline
+	err          error
 }
 
 type contextModel struct {
@@ -118,19 +120,19 @@ func (m contextModel) view() string {
 	return strings.Join(lines, "\n")
 }
 
-func loadContext(factory ClientFactory, organization, project string) tea.Cmd {
+func loadContext(factory ClientFactory, organization, project string, token operationToken) tea.Cmd {
 	return func() tea.Msg {
 		if factory == nil {
-			return contextLoadedMsg{err: fmt.Errorf("não foi possível criar o cliente: factory indisponível")}
+			return contextLoadedMsg{token: token, organization: organization, project: project, err: fmt.Errorf("não foi possível criar o cliente: factory indisponível")}
 		}
 		client, err := factory(organization)
 		if err != nil {
-			return contextLoadedMsg{err: fmt.Errorf("não foi possível criar o cliente: %w", err)}
+			return contextLoadedMsg{token: token, organization: organization, project: project, err: fmt.Errorf("não foi possível criar o cliente: %w", err)}
 		}
 		pipelines, err := client.ListPipelines(context.Background(), project)
 		if err != nil {
-			return contextLoadedMsg{err: fmt.Errorf("não foi possível listar pipelines: %w", err)}
+			return contextLoadedMsg{token: token, organization: organization, project: project, err: fmt.Errorf("não foi possível listar pipelines: %w", err)}
 		}
-		return contextLoadedMsg{client: client, project: project, pipelines: pipelines}
+		return contextLoadedMsg{token: token, organization: organization, client: client, project: project, pipelines: pipelines}
 	}
 }

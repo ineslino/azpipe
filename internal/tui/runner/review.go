@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -13,10 +14,12 @@ import (
 const confirmationValue = "EXECUTAR"
 
 type previewFinishedMsg struct {
+	token   operationToken
 	reviews []domainrunner.Review
 }
 
 type queueConfirmedMsg struct {
+	token   operationToken
 	reviews []domainrunner.Review
 }
 
@@ -25,9 +28,10 @@ type reviewModel struct {
 	confirmation textinput.Model
 	demo         bool
 	warning      string
+	token        operationToken
 }
 
-func newReviewModel(selections []domainrunner.Selection, demo bool) reviewModel {
+func newReviewModel(selections []domainrunner.Selection, demo bool, token operationToken) reviewModel {
 	reviews := make([]domainrunner.Review, len(selections))
 	for index, selection := range selections {
 		reviews[index] = domainrunner.Review{Selection: selection, State: domainrunner.ReviewPending}
@@ -36,12 +40,12 @@ func newReviewModel(selections []domainrunner.Selection, demo bool) reviewModel 
 	confirmation.Prompt = "Confirmação: "
 	confirmation.CharLimit = len(confirmationValue)
 	confirmation.Width = 24
-	return reviewModel{reviews: reviews, confirmation: confirmation, demo: demo}
+	return reviewModel{reviews: reviews, confirmation: confirmation, demo: demo, token: token}
 }
 
-func previewSelections(service domainrunner.Service, selections []domainrunner.Selection) tea.Cmd {
+func previewSelections(service domainrunner.Service, selections []domainrunner.Selection, token operationToken) tea.Cmd {
 	return func() tea.Msg {
-		return previewFinishedMsg{reviews: service.PreviewAll(context.Background(), selections, 4)}
+		return previewFinishedMsg{token: token, reviews: service.PreviewAll(context.Background(), selections, 4)}
 	}
 }
 
@@ -52,7 +56,7 @@ func (m reviewModel) update(msg tea.Msg) (reviewModel, tea.Cmd) {
 			return m, tea.Quit
 		case "enter":
 			if m.canExecute() && m.confirmation.Value() == confirmationValue {
-				return m, func() tea.Msg { return queueConfirmedMsg{reviews: m.reviews} }
+				return m, func() tea.Msg { return queueConfirmedMsg{token: m.token, reviews: m.reviews} }
 			}
 			if m.canExecute() {
 				m.warning = "Escreva EXECUTAR exactamente para confirmar."
@@ -73,7 +77,7 @@ func (m reviewModel) canExecute() bool {
 		return false
 	}
 	for _, review := range m.reviews {
-		if review.State != domainrunner.ReviewReady {
+		if review.State != domainrunner.ReviewReady || review.Err != nil {
 			return false
 		}
 	}
@@ -83,14 +87,15 @@ func (m reviewModel) canExecute() bool {
 func (m reviewModel) view() string {
 	lines := []string{
 		catalogTitleStyle.Render("Revisão"),
-		catalogHeaderStyle.Render("ESTADO MODE PIPELINE BRANCH"),
+		catalogHeaderStyle.Render("ESTADO MODE    ID PIPELINE BRANCH PARÂMETROS"),
 	}
 	for _, review := range m.reviews {
 		state := string(review.State)
 		if m.demo {
 			state = "DEMO"
 		}
-		line := fmt.Sprintf("%-6s %-4s %s %s", state, review.Selection.Mode, review.Selection.Pipeline.Name, review.Selection.Branch)
+		request := review.Selection.Request()
+		line := fmt.Sprintf("%-6s %-4s %5d %s %s %s", state, review.Selection.Mode, review.Selection.Pipeline.ID, review.Selection.Pipeline.Name, request.Branch, formatParameters(request.Parameters))
 		if review.Err != nil {
 			line += ": " + review.Err.Error()
 		}
@@ -106,4 +111,20 @@ func (m reviewModel) view() string {
 	}
 	lines = append(lines, catalogFooterStyle.Render("esc voltar • q sair"))
 	return strings.Join(lines, "\n")
+}
+
+func formatParameters(parameters map[string]string) string {
+	if len(parameters) == 0 {
+		return "-"
+	}
+	keys := make([]string, 0, len(parameters))
+	for key := range parameters {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	values := make([]string, 0, len(keys))
+	for _, key := range keys {
+		values = append(values, key+"="+parameters[key])
+	}
+	return strings.Join(values, ",")
 }

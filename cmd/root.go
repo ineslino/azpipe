@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/ineslino/azpipe/internal/azdo"
 	"github.com/ineslino/azpipe/internal/config"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -26,6 +26,8 @@ run history trends, stage/job breakdowns, and repo-to-pipeline mappings
 across Azure DevOps projects.
 
 Auth: set AZDO_PAT and AZDO_ORG, or run 'azpipe auth set'.`,
+	Args: cobra.NoArgs,
+	RunE: runRootTUI,
 }
 
 // Execute runs the root command. Called from main.

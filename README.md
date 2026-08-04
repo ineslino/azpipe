@@ -6,7 +6,7 @@ mapping — without leaving the shell.
 
 ## Install
 
-### From source (Go 1.22+)
+### From source (Go 1.26.3+)
 
 ```bash
 go install github.com/ineslino/azpipe@latest

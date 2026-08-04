@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/build"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
+	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/pipelines"
 )
 
 type azdoClient struct {
@@ -219,6 +221,93 @@ func (c *azdoClient) GetRepoPipelines(ctx context.Context, project string, repoN
 		})
 	}
 	return result, nil
+}
+
+func (c *azdoClient) PreviewPipeline(ctx context.Context, project string, request RunRequest) error {
+	pc := pipelines.NewClient(ctx, c.conn)
+	runParams := runParameters(request)
+	_, err := pc.Preview(ctx, pipelines.PreviewArgs{
+		Project:       &project,
+		PipelineId:    &request.PipelineID,
+		RunParameters: &runParams,
+	})
+	if err != nil {
+		return fmt.Errorf("preview pipeline: %w", err)
+	}
+	return nil
+}
+
+func (c *azdoClient) QueuePipeline(ctx context.Context, project string, request RunRequest) (PipelineRun, error) {
+	pc := pipelines.NewClient(ctx, c.conn)
+	runParams := runParameters(request)
+	queued, err := pc.RunPipeline(ctx, pipelines.RunPipelineArgs{
+		Project:       &project,
+		PipelineId:    &request.PipelineID,
+		RunParameters: &runParams,
+	})
+	if err != nil {
+		return PipelineRun{}, fmt.Errorf("queue pipeline: %w", err)
+	}
+	if queued == nil || queued.Id == nil {
+		return PipelineRun{}, fmt.Errorf("queue pipeline: response did not include run ID")
+	}
+	return c.GetPipelineRun(ctx, project, *queued.Id)
+}
+
+func (c *azdoClient) GetPipelineRun(ctx context.Context, project string, runID int) (PipelineRun, error) {
+	bc, err := build.NewClient(ctx, c.conn)
+	if err != nil {
+		return PipelineRun{}, fmt.Errorf("create build client: %w", err)
+	}
+	b, err := bc.GetBuild(ctx, build.GetBuildArgs{Project: &project, BuildId: &runID})
+	if err != nil {
+		return PipelineRun{}, fmt.Errorf("get pipeline run: %w", err)
+	}
+	if b == nil {
+		return PipelineRun{}, fmt.Errorf("get pipeline run: empty response")
+	}
+	run := buildToRun(*b)
+	run.WebURL = buildWebURL(b.Links)
+	if run.WebURL == "" {
+		run.WebURL = fmt.Sprintf("%s/%s/_build/results?buildId=%d", strings.TrimRight(c.conn.BaseUrl, "/"), project, run.ID)
+	}
+	return run, nil
+}
+
+func runParameters(request RunRequest) pipelines.RunPipelineParameters {
+	params := make(map[string]string, len(request.Parameters))
+	for key, value := range request.Parameters {
+		params[key] = value
+	}
+	ref := normalizeBranch(request.Branch)
+	return pipelines.RunPipelineParameters{
+		Resources: &pipelines.RunResourcesParameters{
+			Repositories: &map[string]pipelines.RepositoryResourceParameters{
+				"self": {RefName: &ref},
+			},
+		},
+		TemplateParameters: &params,
+	}
+}
+
+func normalizeBranch(branch string) string {
+	if strings.HasPrefix(branch, "refs/") {
+		return branch
+	}
+	return "refs/heads/" + strings.TrimPrefix(branch, "/")
+}
+
+func buildWebURL(links interface{}) string {
+	linksMap, ok := links.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	web, ok := linksMap["web"].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	href, _ := web["href"].(string)
+	return href
 }
 
 // buildToRun converts a build.Build to a PipelineRun.

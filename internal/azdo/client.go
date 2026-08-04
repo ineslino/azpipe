@@ -2,6 +2,7 @@ package azdo
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -15,6 +16,9 @@ type Client interface {
 	GetActiveRun(ctx context.Context, project string, pipelineID int) (*PipelineRun, error)
 	GetBuildTimeline(ctx context.Context, project string, buildID int) ([]StageResult, error)
 	GetRepoPipelines(ctx context.Context, project string, repoName string) ([]Pipeline, error)
+	PreviewPipeline(ctx context.Context, project string, request RunRequest) error
+	QueuePipeline(ctx context.Context, project string, request RunRequest) (PipelineRun, error)
+	GetPipelineRun(ctx context.Context, project string, runID int) (PipelineRun, error)
 }
 
 type Project struct {
@@ -31,10 +35,27 @@ type Repository struct {
 }
 
 type Pipeline struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	Folder   string `json:"folder"`
-	RepoName string `json:"repoName"`
+	ID       int      `json:"id"`
+	Name     string   `json:"name"`
+	Folder   string   `json:"folder"`
+	RepoName string   `json:"repoName"`
+	Tags     []string `json:"tags"`
+}
+
+// Type returns the pipeline's top-level folder, or root for ungrouped pipelines.
+func (p Pipeline) Type() string {
+	for _, segment := range strings.Split(p.Folder, "/") {
+		if segment != "" {
+			return segment
+		}
+	}
+	return "root"
+}
+
+type RunRequest struct {
+	PipelineID int
+	Branch     string
+	Parameters map[string]string
 }
 
 type PipelineRun struct {
@@ -46,6 +67,7 @@ type PipelineRun struct {
 	FinishTime  time.Time     `json:"finishTime"`
 	Duration    time.Duration `json:"durationMs"`
 	Branch      string        `json:"branch"`
+	WebURL      string        `json:"webUrl"`
 }
 
 type StageResult struct {

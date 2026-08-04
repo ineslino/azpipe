@@ -9,7 +9,10 @@ import (
 	"github.com/ineslino/azpipe/internal/azdo"
 )
 
-const operationTimeout = 30 * time.Second
+const (
+	operationTimeout = 30 * time.Second
+	maxParallel      = 4
+)
 
 var ErrPreviewIncomplete = errors.New("pipeline preview is incomplete")
 
@@ -95,6 +98,9 @@ func runParallel(items, parallel int, operation func(int)) {
 	workers := parallel
 	if workers < 1 {
 		workers = 1
+	}
+	if workers > maxParallel {
+		workers = maxParallel
 	}
 	if workers > items {
 		workers = items

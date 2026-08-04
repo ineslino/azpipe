@@ -118,6 +118,21 @@ func TestServiceQueueAll_RespectsParallelLimitAndKeepsSelectionOrder(t *testing.
 	}
 }
 
+func TestServiceQueueAll_CapsRequestedParallelismAtFour(t *testing.T) {
+	base := &azdo.MockClient{QueuedRuns: []azdo.PipelineRun{{ID: 101}, {ID: 202}, {ID: 303}, {ID: 404}, {ID: 505}}}
+	client := &concurrentQueueClient{MockClient: base}
+	service := runner.NewService(client, "DEVCLD")
+
+	_, err := service.QueueAll(context.Background(), readyReviews(11, 22, 33, 44, 55), 5)
+
+	if err != nil {
+		t.Fatalf("QueueAll() error = %v", err)
+	}
+	if client.maxObserved > 4 {
+		t.Fatalf("maximum queue concurrency = %d, want at most 4", client.maxObserved)
+	}
+}
+
 func TestServiceQueueAll_PreservesSuccessfulRunsAfterPartialFailure(t *testing.T) {
 	service := runner.NewService(partialQueueClient{Client: &azdo.MockClient{}, failedPipelineID: 22}, "DEVCLD")
 

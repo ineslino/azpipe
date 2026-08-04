@@ -42,13 +42,23 @@ func TestCatalogSelection_SpaceTogglesOnlyActivePipeline(t *testing.T) {
 	}
 }
 
-func TestCatalogPlan_SelectsActivePipelineInPlanMode(t *testing.T) {
+func TestCatalogPlan_TogglesActivePipelineBetweenPlanAndRun(t *testing.T) {
 	model := catalogFixture()
 	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
 
 	got := model.Selected()
 	if len(got) != 1 || got[0].Pipeline.ID != 101 || got[0].Mode != domainrunner.ModePlan {
 		t.Fatalf("selected pipelines = %#v, want pipeline 101 in PLAN", got)
+	}
+
+	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
+	if got := model.Selected(); len(got) != 1 || got[0].Mode != domainrunner.ModeRun {
+		t.Fatalf("selected pipelines after second p = %#v, want pipeline 101 in RUN", got)
+	}
+
+	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
+	if got := model.Selected(); len(got) != 1 || got[0].Mode != domainrunner.ModePlan {
+		t.Fatalf("selected pipelines after third p = %#v, want pipeline 101 in PLAN", got)
 	}
 }
 

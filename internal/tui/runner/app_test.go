@@ -14,7 +14,7 @@ func TestAppWorkflow_ReviewsSelectionAndQueuesOnlyExactConfirmation(t *testing.T
 	mock := &azdo.MockClient{
 		QueuedRuns: []azdo.PipelineRun{{ID: 9001, State: "inProgress", WebURL: "https://example.test/runs/9001"}},
 	}
-	model := NewApp(mock, "DEVCLD", appFixtures())
+	model := NewApp(mock, "sample-project", appFixtures())
 
 	model, _ = pressApp(t, model, " ")
 	model, cmd := pressApp(t, model, "enter")
@@ -53,7 +53,7 @@ func TestAppWorkflow_ReviewsSelectionAndQueuesOnlyExactConfirmation(t *testing.T
 }
 
 func TestAppWorkflow_ReviewStartsPendingBeforePreviewCompletes(t *testing.T) {
-	model := NewApp(&azdo.MockClient{}, "DEVCLD", appFixtures())
+	model := NewApp(&azdo.MockClient{}, "sample-project", appFixtures())
 	model, _ = pressApp(t, model, " ")
 	model, cmd := pressApp(t, model, "enter")
 	model, _ = runAppCmd(t, model, cmd)
@@ -111,7 +111,7 @@ func TestAppWorkflow_RejectsStaleContextResultAndWrongTarget(t *testing.T) {
 }
 
 func TestAppWorkflow_RejectsStalePreviewAndWrongTarget(t *testing.T) {
-	model := NewApp(&azdo.MockClient{}, "DEVCLD", appFixtures())
+	model := NewApp(&azdo.MockClient{}, "sample-project", appFixtures())
 	model, _ = pressApp(t, model, " ")
 	model, cmd := pressApp(t, model, "enter")
 	model, oldPreviewCmd := runAppCmd(t, model, cmd)
@@ -150,7 +150,7 @@ func TestAppWorkflow_RejectsStalePreviewAndWrongTarget(t *testing.T) {
 
 func TestAppWorkflow_RejectsStaleQueueConfirmationAndWrongTarget(t *testing.T) {
 	mock := &azdo.MockClient{}
-	model := NewApp(mock, "DEVCLD", appFixtures())
+	model := NewApp(mock, "sample-project", appFixtures())
 	model, _ = pressApp(t, model, " ")
 	model, cmd := pressApp(t, model, "enter")
 	model, cmd = runAppCmd(t, model, cmd)
@@ -184,7 +184,7 @@ func TestAppWorkflow_RejectsStaleQueueConfirmationAndWrongTarget(t *testing.T) {
 
 func TestAppWorkflow_PreviewErrorHidesConfirmationAndQuitIsFailClosed(t *testing.T) {
 	mock := &azdo.MockClient{PreviewErr: errors.New("invalid YAML")}
-	model := NewApp(mock, "DEVCLD", appFixtures())
+	model := NewApp(mock, "sample-project", appFixtures())
 
 	model, _ = pressApp(t, model, " ")
 	model, cmd := pressApp(t, model, "enter")
@@ -204,7 +204,7 @@ func TestAppWorkflow_PreviewErrorHidesConfirmationAndQuitIsFailClosed(t *testing
 
 func TestAppWorkflow_EscapeReturnsToCatalogAndPreservesSelection(t *testing.T) {
 	mock := &azdo.MockClient{}
-	model := NewApp(mock, "DEVCLD", appFixtures())
+	model := NewApp(mock, "sample-project", appFixtures())
 
 	model, _ = pressApp(t, model, " ")
 	model, cmd := pressApp(t, model, "enter")
@@ -228,9 +228,9 @@ func TestBootstrapApp_AcceptsContextWithoutFlagsAndListsPipelines(t *testing.T) 
 		return mock, nil
 	}, ContextDefaults{})
 
-	model = typeApp(t, model, "fidelidade")
+	model = typeApp(t, model, "example-org")
 	model, _ = pressApp(t, model, "enter")
-	model = typeApp(t, model, "DEVCLD")
+	model = typeApp(t, model, "sample-project")
 	model, cmd := pressApp(t, model, "enter")
 	model, cmd = runAppCmd(t, model, cmd)
 	model, _ = runAppCmd(t, model, cmd)
@@ -238,8 +238,8 @@ func TestBootstrapApp_AcceptsContextWithoutFlagsAndListsPipelines(t *testing.T) 
 	if model.Screen() != ScreenCatalog {
 		t.Fatalf("screen after context load = %v, want catalog; view:\n%s", model.Screen(), model.View())
 	}
-	if gotOrganization != "fidelidade" {
-		t.Fatalf("factory organization = %q, want fidelidade", gotOrganization)
+	if gotOrganization != "example-org" {
+		t.Fatalf("factory organization = %q, want example-org", gotOrganization)
 	}
 }
 
@@ -255,9 +255,9 @@ func TestBootstrapApp_ContextErrorsStayActionableAndFailClosed(t *testing.T) {
 		t.Fatalf("missing context state unexpected: calls=%d view=%q", factoryCalls, model.View())
 	}
 
-	model = typeApp(t, model, "fidelidade")
+	model = typeApp(t, model, "example-org")
 	model, _ = pressApp(t, model, "enter")
-	model = typeApp(t, model, "DEVCLD")
+	model = typeApp(t, model, "sample-project")
 	model, cmd := pressApp(t, model, "enter")
 	model, cmd = runAppCmd(t, model, cmd)
 	model, _ = runAppCmd(t, model, cmd)
@@ -271,7 +271,7 @@ func TestBootstrapApp_ContextErrorsStayActionableAndFailClosed(t *testing.T) {
 func TestBootstrapApp_ListErrorStaysOnContext(t *testing.T) {
 	mock := &azdo.MockClient{Err: errors.New("project not found")}
 	model := NewBootstrapApp(func(string) (azdo.Client, error) { return mock, nil }, ContextDefaults{
-		Organization: "fidelidade",
+		Organization: "example-org",
 		Project:      "UNKNOWN",
 	})
 
@@ -290,7 +290,7 @@ func TestExecution_RefreshesNonTerminalRunsAndShowsPartialFailure(t *testing.T) 
 	}}
 	selectionA := appSelection(appFixtures()[0])
 	selectionB := appSelection(appFixtures()[1])
-	model := NewApp(mock, "DEVCLD", appFixtures())
+	model := NewApp(mock, "sample-project", appFixtures())
 	model.screen = ScreenExecution
 	model.execution = executionModel{
 		queued: true,
@@ -316,6 +316,38 @@ func TestExecution_RefreshesNonTerminalRunsAndShowsPartialFailure(t *testing.T) 
 	}
 }
 
+func TestExecution_QueueCannotBeInterruptedBeforeQueueFinished(t *testing.T) {
+	for _, key := range []string{"q", "esc", "ctrl+c", "ctrl+d"} {
+		t.Run(key, func(t *testing.T) {
+			model := NewApp(&azdo.MockClient{}, "sample-project", appFixtures())
+			model.screen = ScreenExecution
+			model.execution = newExecutionModel()
+
+			updated, cmd := pressApp(t, model, key)
+
+			if updated.Screen() != ScreenExecution {
+				t.Fatalf("screen after %s during queue = %v, want execution", key, updated.Screen())
+			}
+			if cmd != nil {
+				if _, quit := cmd().(tea.QuitMsg); quit {
+					t.Fatalf("%s terminated before queueFinishedMsg", key)
+				}
+				t.Fatalf("%s returned command %T before queueFinishedMsg, want nil", key, cmd())
+			}
+		})
+	}
+}
+
+func TestExecution_QuitAfterQueueFinishedStopsLocalMonitoring(t *testing.T) {
+	model := NewApp(&azdo.MockClient{}, "sample-project", appFixtures())
+	model.screen = ScreenExecution
+	model.execution = executionModel{queued: true}
+
+	_, cmd := pressApp(t, model, "q")
+
+	assertQuit(t, cmd)
+}
+
 func TestExecution_RetriesAfterTransientRefreshErrorUntilCompleted(t *testing.T) {
 	mock := &azdo.MockClient{
 		QueuedRuns: []azdo.PipelineRun{{ID: 9001, State: "inProgress", WebURL: "https://example.test/runs/9001"}},
@@ -323,7 +355,7 @@ func TestExecution_RetriesAfterTransientRefreshErrorUntilCompleted(t *testing.T)
 			9001: {ID: 9001, State: "completed", Result: "succeeded", WebURL: "https://example.test/runs/9001"},
 		},
 	}
-	model := NewApp(mock, "DEVCLD", appFixtures())
+	model := NewApp(mock, "sample-project", appFixtures())
 	model, _ = pressApp(t, model, " ")
 	model, cmd := pressApp(t, model, "enter")
 	model, cmd = runAppCmd(t, model, cmd)
@@ -351,7 +383,7 @@ func TestExecution_RetriesAfterTransientRefreshErrorUntilCompleted(t *testing.T)
 }
 
 func TestReview_RendersPipelineIDAndEffectiveParameters(t *testing.T) {
-	model := NewApp(&azdo.MockClient{}, "DEVCLD", appFixtures())
+	model := NewApp(&azdo.MockClient{}, "sample-project", appFixtures())
 	model, _ = pressApp(t, model, "p")
 	model, cmd := pressApp(t, model, "enter")
 	model, cmd = runAppCmd(t, model, cmd)
@@ -407,6 +439,8 @@ func pressApp(t *testing.T, model AppModel, key string) (AppModel, tea.Cmd) {
 		msg = tea.KeyMsg{Type: tea.KeyEsc}
 	case "ctrl+u":
 		msg = tea.KeyMsg{Type: tea.KeyCtrlU}
+	case "ctrl+c":
+		msg = tea.KeyMsg{Type: tea.KeyCtrlC}
 	case "ctrl+d":
 		msg = tea.KeyMsg{Type: tea.KeyCtrlD}
 	}

@@ -47,7 +47,7 @@ func (s Service) PreviewAll(ctx context.Context, selections []Selection, paralle
 // queue request before reporting any partial failures.
 func (s Service) QueueAll(ctx context.Context, reviews []Review, parallel int) ([]RunResult, error) {
 	for _, review := range reviews {
-		if review.State != ReviewReady {
+		if review.State != ReviewReady || review.Err != nil {
 			return nil, ErrPreviewIncomplete
 		}
 	}

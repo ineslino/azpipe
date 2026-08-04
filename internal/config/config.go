@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 
@@ -36,20 +37,20 @@ func Project() string { return viper.GetString("project") }
 
 func SetPAT(pat string) error {
 	viper.Set("pat", pat)
-	return save()
+	return save(map[string]string{"pat": pat})
 }
 
 func SetOrg(org string) error {
 	viper.Set("org", org)
-	return save()
+	return save(map[string]string{"org": org})
 }
 
 func SetProject(project string) error {
 	viper.Set("project", project)
-	return save()
+	return save(map[string]string{"project": project})
 }
 
-func save() error {
+func save(changes map[string]string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -59,7 +60,32 @@ func save() error {
 		return err
 	}
 	path := filepath.Join(dir, configFile+"."+configType)
-	if err := viper.WriteConfigAs(path); err != nil {
+	values := make(map[string]string, 3)
+	if contents, readErr := os.ReadFile(path); readErr == nil && len(contents) > 0 {
+		existing := viper.New()
+		existing.SetConfigType(configType)
+		if err := existing.ReadConfig(bytes.NewReader(contents)); err != nil {
+			return err
+		}
+		for _, key := range []string{"pat", "org", "project"} {
+			if existing.IsSet(key) {
+				values[key] = existing.GetString(key)
+			}
+		}
+	} else if readErr != nil && !os.IsNotExist(readErr) {
+		return readErr
+	}
+	for key, value := range changes {
+		values[key] = value
+	}
+
+	persisted := viper.New()
+	persisted.SetConfigType(configType)
+	persisted.SetConfigPermissions(0o600)
+	for key, value := range values {
+		persisted.Set(key, value)
+	}
+	if err := persisted.WriteConfigAs(path); err != nil {
 		return err
 	}
 	return os.Chmod(path, 0o600)

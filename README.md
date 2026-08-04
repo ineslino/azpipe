@@ -68,7 +68,7 @@ that can queue a pipeline.
 | `j`/`k` or arrows | Move through the catalog |
 | `/` | Filter by name, ID, folder, type, repository, or tag |
 | `Space` | Select or remove the active pipeline |
-| `p` | Set the active selected pipeline to `PLAN` |
+| `p` | Toggle the active pipeline between `RUN` and `PLAN` (and select it if needed) |
 | `b` | Edit the global branch, initially `main` |
 | `Enter` | Review the selection |
 | `Esc` | Leave the current input or return to the catalog without losing the selection |
@@ -198,7 +198,18 @@ org: myorg
 project: myproject
 ```
 
-The PAT requires at minimum the **Build (Read)** and **Project and Team (Read)** scopes.
+Use the least-privilege PAT scope for the commands you run:
+
+| Command | PAT scope |
+|---------|-----------|
+| `azpipe` interactive preview and execution | **Build (Read & execute)** |
+| `pipelines list`, `runs`, `analyze`, `watch` | **Build (Read)** |
+| `projects list` | **Project and Team (Read)** |
+| `repos list` | **Code (Read)** |
+| `repos pipelines` | **Code (Read)** and **Build (Read)** |
+
+Azure DevOps documents the execution API under the `vso.build_execute` scope, which
+includes the ability to queue a build: [Runs - Run Pipeline](https://learn.microsoft.com/en-us/rest/api/azure/devops/pipelines/runs/run-pipeline?view=azure-devops-rest-7.1).
 
 ## Building from source
 

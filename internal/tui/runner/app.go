@@ -91,6 +91,11 @@ func (m AppModel) Init() tea.Cmd {
 
 // Update routes messages through the active screen and workflow transitions.
 func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if key, ok := msg.(tea.KeyMsg); ok && m.screen == ScreenExecution && !m.execution.queued {
+		if key.String() == "q" || key.Type == tea.KeyEsc || key.Type == tea.KeyCtrlC || key.Type == tea.KeyCtrlD {
+			return m, nil
+		}
+	}
 	if key, ok := msg.(tea.KeyMsg); ok && (key.Type == tea.KeyCtrlC || key.Type == tea.KeyCtrlD) {
 		return m, tea.Quit
 	}

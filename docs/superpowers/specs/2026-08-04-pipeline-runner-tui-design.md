@@ -60,11 +60,11 @@ O modo demo percorre catálogo e revisão com dados fictícios. Nunca constrói 
 
 ## Autenticação e configuração
 
-O repositório público não inclui nomes, organizações, identidades, Keychain services ou paths da Fidelidade.
+O repositório público não inclui nomes, organizações, identidades, Keychain services ou paths reais de empresas.
 
 Mantém-se a precedência atual para compatibilidade: ambiente, flags e configuração. O PAT persistido fica marcado como legado e o ficheiro é sempre gravado com permissão `0600`. A documentação recomenda `AZDO_PAT` ou um mecanismo externo de injeção de credenciais.
 
-A futura cópia corporativa pode disponibilizar um wrapper específico para `azdo-as`, sem introduzir esse contrato no código público.
+Uma futura distribuição privada pode disponibilizar um wrapper de autenticação específico, sem introduzir esse contrato no código público.
 
 ## Testes e validação
 
@@ -79,7 +79,7 @@ A futura cópia corporativa pode disponibilizar um wrapper específico para `azd
 ## Fora do âmbito
 
 - migração ou publicação do `infra-cleanup`;
-- cópia para `DEVOPS.TOOLS`;
+- cópia para um repositório privado;
 - publicação de nova release GitHub;
 - armazenamento cross-platform em keyring;
 - cancelamento remoto de runs;

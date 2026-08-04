@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 )
 
@@ -30,7 +31,7 @@ func TestPreviewPipelineNormalizesBranchAndSendsParameters(t *testing.T) {
 	})
 
 	client := New(server.URL, "token")
-	err := client.PreviewPipeline(context.Background(), "DEVCLD", RunRequest{
+	err := client.PreviewPipeline(context.Background(), "sample-project", RunRequest{
 		PipelineID: 742,
 		Branch:     "main",
 		Parameters: map[string]string{"planOnly": "true"},
@@ -47,22 +48,24 @@ func TestPreviewPipelineNormalizesBranchAndSendsParameters(t *testing.T) {
 	}
 }
 
-func TestQueuePipelineMapsBuildAndFallbackWebURL(t *testing.T) {
+func TestQueuePipelineReturnsAcceptedRunWithoutSubsequentGet(t *testing.T) {
 	t.Parallel()
 
+	var getRequests atomic.Int32
 	server := newPipelineServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
-			_, _ = w.Write([]byte(`{"id":99,"state":"inProgress"}`))
+			_, _ = w.Write([]byte(`{"id":99,"state":"inProgress","result":"succeeded"}`))
 		case http.MethodGet:
-			_, _ = w.Write([]byte(`{"id":99,"buildNumber":"20260804.1","status":"inProgress","result":"succeeded"}`))
+			getRequests.Add(1)
+			http.Error(w, "unexpected GET", http.StatusInternalServerError)
 		default:
 			t.Fatalf("request method = %s, want POST or GET", r.Method)
 		}
 	})
 
 	client := New(server.URL, "token")
-	run, err := client.QueuePipeline(context.Background(), "DEVCLD", RunRequest{PipelineID: 742, Branch: "refs/heads/main"})
+	run, err := client.QueuePipeline(context.Background(), "sample-project", RunRequest{PipelineID: 742, Branch: "refs/heads/main"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,8 +73,11 @@ func TestQueuePipelineMapsBuildAndFallbackWebURL(t *testing.T) {
 	if run.ID != 99 || run.State != "inProgress" || run.Result != "succeeded" {
 		t.Fatalf("run = %#v, want ID 99, state inProgress, result succeeded", run)
 	}
-	if want := server.URL + "/DEVCLD/_build/results?buildId=99"; run.WebURL != want {
+	if want := server.URL + "/sample-project/_build/results?buildId=99"; run.WebURL != want {
 		t.Fatalf("web URL = %q, want %q", run.WebURL, want)
+	}
+	if got := getRequests.Load(); got != 0 {
+		t.Fatalf("GET requests after accepted queue = %d, want 0", got)
 	}
 }
 
@@ -82,17 +88,17 @@ func TestGetPipelineRunMapsBuild(t *testing.T) {
 		if r.Method != http.MethodGet {
 			t.Fatalf("request method = %s, want GET", r.Method)
 		}
-		_, _ = w.Write([]byte(`{"id":88,"status":"completed","result":"failed","_links":{"web":{"href":"https://dev.azure.com/org/DEVCLD/_build/results?buildId=88"}}}`))
+		_, _ = w.Write([]byte(`{"id":88,"status":"completed","result":"failed","_links":{"web":{"href":"https://dev.azure.com/org/sample-project/_build/results?buildId=88"}}}`))
 	})
 
-	run, err := New(server.URL, "token").GetPipelineRun(context.Background(), "DEVCLD", 88)
+	run, err := New(server.URL, "token").GetPipelineRun(context.Background(), "sample-project", 88)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if run.ID != 88 || run.State != "completed" || run.Result != "failed" {
 		t.Fatalf("run = %#v, want ID 88, state completed, result failed", run)
 	}
-	if got, want := run.WebURL, "https://dev.azure.com/org/DEVCLD/_build/results?buildId=88"; got != want {
+	if got, want := run.WebURL, "https://dev.azure.com/org/sample-project/_build/results?buildId=88"; got != want {
 		t.Fatalf("web URL = %q, want %q", got, want)
 	}
 }

@@ -16,7 +16,7 @@
 - Confirmação exige escrever exatamente `EXECUTAR`.
 - Concorrência máxima por omissão: quatro.
 - O modo demo nunca cria cliente Azure DevOps nem faz rede.
-- O repositório público não contém nomes, organizações, identidades ou paths da Fidelidade.
+- O repositório público não contém nomes, organizações, identidades ou paths reais de empresas.
 - Alterações seguem TDD e cada tarefa termina num commit local focado.
 
 ---
@@ -46,7 +46,7 @@ request := azdo.RunRequest{
     Branch: "main",
     Parameters: map[string]string{"planOnly": "true"},
 }
-err := client.PreviewPipeline(ctx, "DEVCLD", request)
+err := client.PreviewPipeline(ctx, "sample-project", request)
 if err != nil { t.Fatal(err) }
 ```
 
@@ -233,7 +233,7 @@ git commit -m "feat: criar catálogo interativo de pipelines"
 Test full model transitions with `azdo.MockClient`:
 
 ```go
-model := NewApp(mock, "DEVCLD", fixtures)
+model := NewApp(mock, "sample-project", fixtures)
 model = press(model, "space", "enter")
 // wait for preview message
 if model.Screen() != ScreenReview { t.Fatal("expected review") }

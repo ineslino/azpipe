@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
@@ -17,6 +18,13 @@ import (
 
 type azdoClient struct {
 	conn *azuredevops.Connection
+}
+
+const pipelineTagParallelism = 4
+
+type pipelineBuildClient interface {
+	GetDefinitions(context.Context, build.GetDefinitionsArgs) (*build.GetDefinitionsResponseValue, error)
+	GetDefinitionTags(context.Context, build.GetDefinitionTagsArgs) (*[]string, error)
 }
 
 // New returns a Client authenticated with the given PAT against orgURL.
@@ -88,6 +96,10 @@ func (c *azdoClient) ListPipelines(ctx context.Context, project string) ([]Pipel
 	if err != nil {
 		return nil, fmt.Errorf("create build client: %w", err)
 	}
+	return listPipelineDefinitions(ctx, bc, project)
+}
+
+func listPipelineDefinitions(ctx context.Context, bc pipelineBuildClient, project string) ([]Pipeline, error) {
 	top := 500
 	incLatest := true
 	defs, err := bc.GetDefinitions(ctx, build.GetDefinitionsArgs{
@@ -98,18 +110,53 @@ func (c *azdoClient) ListPipelines(ctx context.Context, project string) ([]Pipel
 	if err != nil {
 		return nil, fmt.Errorf("list pipelines: %w", err)
 	}
-	var result []Pipeline
-	for _, d := range defs.Value {
-		p := Pipeline{
+	result := make([]Pipeline, len(defs.Value))
+	for index, d := range defs.Value {
+		result[index] = Pipeline{
 			ID:     derefInt(d.Id),
 			Name:   derefStr(d.Name),
 			Folder: derefStr(d.Path),
 		}
 		// Repository is only available through the latest build reference.
 		if d.LatestBuild != nil && d.LatestBuild.Repository != nil {
-			p.RepoName = derefStr(d.LatestBuild.Repository.Name)
+			result[index].RepoName = derefStr(d.LatestBuild.Repository.Name)
 		}
-		result = append(result, p)
+	}
+
+	jobs := make(chan int)
+	errs := make([]error, len(result))
+	workers := min(pipelineTagParallelism, len(result))
+	var group sync.WaitGroup
+	group.Add(workers)
+	for range workers {
+		go func() {
+			defer group.Done()
+			for index := range jobs {
+				definitionID := result[index].ID
+				tags, tagErr := bc.GetDefinitionTags(ctx, build.GetDefinitionTagsArgs{
+					Project:      &project,
+					DefinitionId: &definitionID,
+				})
+				if tagErr != nil {
+					errs[index] = fmt.Errorf("get tags for pipeline %d: %w", definitionID, tagErr)
+					continue
+				}
+				if tags != nil {
+					result[index].Tags = append([]string(nil), (*tags)...)
+				}
+			}
+		}()
+	}
+	for index := range result {
+		jobs <- index
+	}
+	close(jobs)
+	group.Wait()
+
+	for _, tagErr := range errs {
+		if tagErr != nil {
+			return nil, tagErr
+		}
 	}
 	return result, nil
 }
@@ -251,7 +298,11 @@ func (c *azdoClient) QueuePipeline(ctx context.Context, project string, request 
 	if queued == nil || queued.Id == nil {
 		return PipelineRun{}, fmt.Errorf("queue pipeline: response did not include run ID")
 	}
-	return c.GetPipelineRun(ctx, project, *queued.Id)
+	run := pipelineRunToRun(*queued)
+	if run.WebURL == "" {
+		run.WebURL = fmt.Sprintf("%s/%s/_build/results?buildId=%d", strings.TrimRight(c.conn.BaseUrl, "/"), project, run.ID)
+	}
+	return run, nil
 }
 
 func (c *azdoClient) GetPipelineRun(ctx context.Context, project string, runID int) (PipelineRun, error) {
@@ -308,6 +359,21 @@ func buildWebURL(links interface{}) string {
 	}
 	href, _ := web["href"].(string)
 	return href
+}
+
+func pipelineRunToRun(run pipelines.Run) PipelineRun {
+	result := PipelineRun{
+		ID:          derefInt(run.Id),
+		BuildNumber: derefStr(run.Name),
+		WebURL:      buildWebURL(run.Links),
+	}
+	if run.State != nil {
+		result.State = string(*run.State)
+	}
+	if run.Result != nil {
+		result.Result = string(*run.Result)
+	}
+	return result
 }
 
 // buildToRun converts a build.Build to a PipelineRun.

@@ -3,6 +3,7 @@ package runner_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -49,7 +50,7 @@ func TestSelectionIdentity_IsPipelineID(t *testing.T) {
 
 func TestServicePreviewAll_PreviewsEverySelectedPipelineInSelectionOrder(t *testing.T) {
 	client := &azdo.MockClient{}
-	service := runner.NewService(client, "DEVCLD")
+	service := runner.NewService(client, "sample-project")
 	selections := []runner.Selection{
 		{Pipeline: azdo.Pipeline{ID: 11}, Mode: runner.ModeRun},
 		{Pipeline: azdo.Pipeline{ID: 22}, Mode: runner.ModePlan},
@@ -72,12 +73,20 @@ func TestServicePreviewAll_PreviewsEverySelectedPipelineInSelectionOrder(t *test
 	if len(client.PreviewRequests) != 3 {
 		t.Fatalf("previewed %d pipelines, want 3", len(client.PreviewRequests))
 	}
+	previewedIDs := make([]int, len(client.PreviewRequests))
+	for index, request := range client.PreviewRequests {
+		previewedIDs[index] = request.PipelineID
+	}
+	slices.Sort(previewedIDs)
+	if !slices.Equal(previewedIDs, []int{11, 22, 33}) {
+		t.Fatalf("previewed pipeline IDs = %v, want [11 22 33]", previewedIDs)
+	}
 }
 
 func TestServiceQueueAll_PreviewErrorPreventsEveryQueueCall(t *testing.T) {
 	base := &azdo.MockClient{}
 	client := previewFailureClient{MockClient: base, failedPipelineID: 22}
-	service := runner.NewService(client, "DEVCLD")
+	service := runner.NewService(client, "sample-project")
 	selections := []runner.Selection{
 		{Pipeline: azdo.Pipeline{ID: 11}, Mode: runner.ModeRun},
 		{Pipeline: azdo.Pipeline{ID: 22}, Mode: runner.ModePlan},
@@ -97,10 +106,29 @@ func TestServiceQueueAll_PreviewErrorPreventsEveryQueueCall(t *testing.T) {
 	}
 }
 
+func TestServiceQueueAll_ReadyReviewWithErrorPreventsEveryQueueCall(t *testing.T) {
+	client := &azdo.MockClient{}
+	service := runner.NewService(client, "sample-project")
+	reviews := readyReviews(11, 22)
+	reviews[1].Err = errors.New("preview rejected")
+
+	runs, err := service.QueueAll(context.Background(), reviews, 2)
+
+	if !errors.Is(err, runner.ErrPreviewIncomplete) {
+		t.Fatalf("queue after ready review with error = %v, want ErrPreviewIncomplete", err)
+	}
+	if runs != nil {
+		t.Fatalf("queue after ready review with error returned %d runs, want nil", len(runs))
+	}
+	if len(client.QueueRequests) != 0 {
+		t.Fatalf("queued %d pipelines despite review error", len(client.QueueRequests))
+	}
+}
+
 func TestServiceQueueAll_RespectsParallelLimitAndKeepsSelectionOrder(t *testing.T) {
 	base := &azdo.MockClient{QueuedRuns: []azdo.PipelineRun{{ID: 101}, {ID: 202}, {ID: 303}, {ID: 404}}}
 	client := &concurrentQueueClient{MockClient: base}
-	service := runner.NewService(client, "DEVCLD")
+	service := runner.NewService(client, "sample-project")
 	reviews := readyReviews(11, 22, 33, 44)
 
 	runs, err := service.QueueAll(context.Background(), reviews, 2)
@@ -121,7 +149,7 @@ func TestServiceQueueAll_RespectsParallelLimitAndKeepsSelectionOrder(t *testing.
 func TestServiceQueueAll_CapsRequestedParallelismAtFour(t *testing.T) {
 	base := &azdo.MockClient{QueuedRuns: []azdo.PipelineRun{{ID: 101}, {ID: 202}, {ID: 303}, {ID: 404}, {ID: 505}}}
 	client := &concurrentQueueClient{MockClient: base}
-	service := runner.NewService(client, "DEVCLD")
+	service := runner.NewService(client, "sample-project")
 
 	_, err := service.QueueAll(context.Background(), readyReviews(11, 22, 33, 44, 55), 5)
 
@@ -134,7 +162,7 @@ func TestServiceQueueAll_CapsRequestedParallelismAtFour(t *testing.T) {
 }
 
 func TestServiceQueueAll_PreservesSuccessfulRunsAfterPartialFailure(t *testing.T) {
-	service := runner.NewService(partialQueueClient{Client: &azdo.MockClient{}, failedPipelineID: 22}, "DEVCLD")
+	service := runner.NewService(partialQueueClient{Client: &azdo.MockClient{}, failedPipelineID: 22}, "sample-project")
 
 	runs, err := service.QueueAll(context.Background(), readyReviews(11, 22, 33), 2)
 
@@ -154,7 +182,7 @@ func TestServiceQueueAll_PreservesSuccessfulRunsAfterPartialFailure(t *testing.T
 
 func TestServiceRefresh_UpdatesOnlyNonTerminalRuns(t *testing.T) {
 	client := &azdo.MockClient{RunByID: map[int]azdo.PipelineRun{7: {ID: 7, State: "completed", Result: "succeeded"}}}
-	service := runner.NewService(client, "DEVCLD")
+	service := runner.NewService(client, "sample-project")
 	runs := []runner.RunResult{
 		{Review: runner.Review{Selection: runner.Selection{Pipeline: azdo.Pipeline{ID: 1}}}, Run: azdo.PipelineRun{ID: 7, State: "inProgress"}},
 		{Review: runner.Review{Selection: runner.Selection{Pipeline: azdo.Pipeline{ID: 2}}}, Run: azdo.PipelineRun{ID: 8, State: "completed", Result: "failed"}},

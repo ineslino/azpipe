@@ -139,7 +139,11 @@ func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "p":
 		if pipeline, ok := m.active(); ok {
-			m.selected[pipeline.ID] = domainrunner.ModePlan
+			if m.selected[pipeline.ID] == domainrunner.ModePlan {
+				m.selected[pipeline.ID] = domainrunner.ModeRun
+			} else {
+				m.selected[pipeline.ID] = domainrunner.ModePlan
+			}
 			m.warning = ""
 		}
 	case "enter":

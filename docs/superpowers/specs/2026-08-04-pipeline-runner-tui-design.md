@@ -19,6 +19,8 @@ Os comandos existentes, como `azpipe pipelines list`, continuam inalterados.
 
 O catálogo mostra seleção, modo, ID, tipo e nome. O tipo é o primeiro segmento da pasta da definição. A pesquisa iniciada com `/` compara nome, ID, pasta, tipo, repositório e tags sem distinguir maiúsculas de minúsculas.
 
+A linha ativa apresenta detalhe progressivo numa segunda linha discreta: repositório, pasta e tags. As restantes linhas permanecem compactas. Branch e parâmetros não aparecem no catálogo porque pertencem ao ecrã de revisão.
+
 Teclas:
 
 - `j/k` ou setas: navegar;

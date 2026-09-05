@@ -1,5 +1,7 @@
 # Pipeline Runner TUI
 
+> Historical design, superseded. The [current operational guide](../../usage.md) is authoritative. In particular, preview does not prove PLAN safety; explicit owner-reviewed contracts are required. Parameter forms, profiles and history now exist. The original proposal below is retained for traceability, not as implementation guidance.
+
 ## Objetivo
 
 Transformar `azpipe` numa interface interativa para selecionar, validar, executar e acompanhar várias pipelines Azure DevOps, mantendo os comandos CLI existentes para automação.

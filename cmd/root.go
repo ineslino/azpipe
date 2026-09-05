@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"net/url"
 	"os"
+	"os/signal"
 	"strings"
 	"time"
 
@@ -32,7 +35,9 @@ Auth: set AZDO_PAT and AZDO_ORG, or run 'azpipe auth set'.`,
 
 // Execute runs the root command. Called from main.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		os.Exit(1)
 	}
 }
@@ -55,7 +60,23 @@ func resolveOrg() (string, error) {
 	if o == "" {
 		return "", fmt.Errorf("org is required: set --org, AZDO_ORG, or run 'azpipe auth set --org <name>'")
 	}
-	return toOrgURL(o), nil
+	return validatedOrgURL(o)
+}
+
+func validatedOrgURL(org string) (string, error) {
+	value := toOrgURL(strings.TrimSpace(org))
+	u, err := url.Parse(value)
+	if err != nil || u.Scheme != "https" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Port() != "" {
+		return "", fmt.Errorf("organization must be an HTTPS Azure DevOps organization URL")
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if u.Host == "dev.azure.com" && len(parts) == 1 && parts[0] != "" && !strings.ContainsAny(parts[0], ".%\\ ") {
+		return "https://dev.azure.com/" + parts[0], nil
+	}
+	if strings.HasSuffix(u.Host, ".visualstudio.com") && strings.Count(u.Host, ".") == 2 && strings.Trim(u.Path, "/") == "" {
+		return "https://" + u.Host, nil
+	}
+	return "", fmt.Errorf("organization must use dev.azure.com/<org> or <org>.visualstudio.com")
 }
 
 // resolveProject returns the project name, checking flag → config → error.
@@ -85,11 +106,31 @@ func newClient() (azdo.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	return clientForOrganization(orgURL)
+}
+
+func clientForOrganization(orgURL string) (azdo.Client, error) {
+	contracts, err := azdo.LoadContracts(os.Getenv("AZPIPE_CONTRACTS"))
+	if err != nil {
+		return nil, err
+	}
+	if executable := os.Getenv("AZPIPE_AZDO_AS"); executable != "" {
+		if os.Getenv("AZPIPE_EXPECTED_IDENTITY") == "" || os.Getenv("AZPIPE_AUTH_PROFILE") == "" {
+			return nil, fmt.Errorf("azdo-as requer AZPIPE_EXPECTED_IDENTITY e AZPIPE_AUTH_PROFILE")
+		}
+		c := &azdo.CommandClient{Executable: executable, Organization: orgURL, Profile: os.Getenv("AZPIPE_AUTH_PROFILE"), ExpectedIdentity: os.Getenv("AZPIPE_EXPECTED_IDENTITY"), Contracts: contracts}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := c.VerifyIdentity(ctx); err != nil {
+			return nil, err
+		}
+		return c, nil
+	}
 	pat, err := resolvePAT()
 	if err != nil {
 		return nil, err
 	}
-	return azdo.New(orgURL, pat), nil
+	return azdo.NewWithContracts(orgURL, pat, contracts), nil
 }
 
 // toOrgURL ensures the org value is a full Azure DevOps URL.

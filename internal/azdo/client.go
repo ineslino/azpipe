@@ -35,16 +35,31 @@ type Repository struct {
 }
 
 type Pipeline struct {
-	ID       int      `json:"id"`
-	Name     string   `json:"name"`
-	Folder   string   `json:"folder"`
-	RepoName string   `json:"repoName"`
-	Tags     []string `json:"tags"`
+	ID              int           `json:"id"`
+	Name            string        `json:"name"`
+	Folder          string        `json:"folder"`
+	RepoName        string        `json:"repoName"`
+	Tags            []string      `json:"tags"`
+	MetadataWarning string        `json:"metadataWarning,omitempty"`
+	PlanContract    *PlanContract `json:"planContract,omitempty"`
+}
+
+type PlanContract struct {
+	Organization      string `json:"organization"`
+	Project           string `json:"project"`
+	PipelineID        int    `json:"pipelineId"`
+	DefinitionVersion int    `json:"definitionVersion"`
+	Commit            string `json:"commit"`
+	Parameter         string `json:"parameter"`
+	Type              string `json:"type"`
+	PlanValue         string `json:"planValue"`
+	RunValue          string `json:"runValue"`
+	Evidence          string `json:"evidence"`
 }
 
 // Type returns the pipeline's top-level folder, or root for ungrouped pipelines.
 func (p Pipeline) Type() string {
-	for _, segment := range strings.Split(p.Folder, "/") {
+	for _, segment := range strings.Split(strings.ReplaceAll(p.Folder, "\\", "/"), "/") {
 		if segment != "" {
 			return segment
 		}
@@ -53,9 +68,12 @@ func (p Pipeline) Type() string {
 }
 
 type RunRequest struct {
-	PipelineID int
-	Branch     string
-	Parameters map[string]string
+	PipelineID        int
+	Branch            string
+	Parameters        map[string]string
+	Commit            string
+	DefinitionVersion int
+	PreviewHash       string
 }
 
 type PipelineRun struct {

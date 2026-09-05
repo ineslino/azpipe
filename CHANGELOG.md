@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Typed pipeline parameter forms, context-isolated profiles and resumable batch journals.
+- Explicit owner-reviewed PLAN contracts, source pinning and expanded-YAML revalidation.
+- CLI batch preview/execution, optional external authentication adapter and offline demo fixtures.
+- Framed TUI tables, AZPIPE welcome banner, bilingual READMEs and reproducible demo images.
 - Interactive `azpipe` pipeline runner with catalog filtering, multi-selection,
   branch and `PLAN` selection, preview review, confirmation, and run monitoring
 - `azpipe demo` offline runner with local fixtures and no Azure DevOps client or runs

@@ -9,11 +9,11 @@ import (
 )
 
 var tuiClientFactory tuirunner.ClientFactory = func(organization string) (azdo.Client, error) {
-	pat, err := resolvePAT()
+	orgURL, err := validatedOrgURL(organization)
 	if err != nil {
 		return nil, err
 	}
-	return azdo.New(toOrgURL(organization), pat), nil
+	return clientForOrganization(orgURL)
 }
 
 var runProgram = func(model tea.Model) (tea.Model, error) {

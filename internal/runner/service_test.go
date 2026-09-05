@@ -14,7 +14,7 @@ import (
 
 func TestSelectionParameters_PlanAddsPlanOnly(t *testing.T) {
 	selection := runner.Selection{
-		Pipeline: azdo.Pipeline{ID: 42},
+		Pipeline: azdo.Pipeline{ID: 42, PlanContract: &azdo.PlanContract{Parameter: "planOnly", PlanValue: "true", RunValue: "false"}},
 		Mode:     runner.ModePlan,
 		Branch:   "main",
 	}
@@ -53,7 +53,7 @@ func TestServicePreviewAll_PreviewsEverySelectedPipelineInSelectionOrder(t *test
 	service := runner.NewService(client, "sample-project")
 	selections := []runner.Selection{
 		{Pipeline: azdo.Pipeline{ID: 11}, Mode: runner.ModeRun},
-		{Pipeline: azdo.Pipeline{ID: 22}, Mode: runner.ModePlan},
+		{Pipeline: azdo.Pipeline{ID: 22, PlanContract: &azdo.PlanContract{Parameter: "planOnly", PlanValue: "true", RunValue: "false"}}, Mode: runner.ModePlan},
 		{Pipeline: azdo.Pipeline{ID: 33}, Mode: runner.ModeRun},
 	}
 

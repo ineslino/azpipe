@@ -382,8 +382,11 @@ func TestExecution_RetriesAfterTransientRefreshErrorUntilCompleted(t *testing.T)
 	}
 }
 
-func TestReview_RendersPipelineIDAndEffectiveParameters(t *testing.T) {
-	model := NewApp(&azdo.MockClient{}, "sample-project", appFixtures())
+func TestReview_RendersPipelineIDAndSentParameters(t *testing.T) {
+	fixtures := appFixtures()
+	fixtures[0].PlanContract = &azdo.PlanContract{Parameter: "planOnly", PlanValue: "true", RunValue: "false"}
+	model := NewApp(&azdo.MockClient{}, "sample-project", fixtures)
+	model, _ = pressApp(t, model, " ")
 	model, _ = pressApp(t, model, "p")
 	model, cmd := pressApp(t, model, "enter")
 	model, cmd = runAppCmd(t, model, cmd)

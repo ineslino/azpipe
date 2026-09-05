@@ -44,6 +44,7 @@ func TestCatalogSelection_SpaceTogglesOnlyActivePipeline(t *testing.T) {
 
 func TestCatalogPlan_TogglesActivePipelineBetweenPlanAndRun(t *testing.T) {
 	model := catalogFixture()
+	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeySpace})
 	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
 
 	got := model.Selected()
@@ -159,7 +160,7 @@ func TestCatalogView_RendersProgressiveDetailOnlyForActivePipeline(t *testing.T)
 
 func catalogFixture() CatalogModel {
 	return NewCatalogModel([]azdo.Pipeline{
-		{ID: 101, Name: "alpha deploy", Folder: "/apps/billing", RepoName: "billing-api", Tags: []string{"owner:billing"}},
+		{ID: 101, Name: "alpha deploy", Folder: "/apps/billing", RepoName: "billing-api", Tags: []string{"owner:billing"}, PlanContract: &azdo.PlanContract{Parameter: "planOnly", PlanValue: "true", RunValue: "false"}},
 		{ID: 202, Name: "orders deploy", Folder: "/platform/orders", RepoName: "orders-api", Tags: []string{"owner:orders"}},
 		{ID: 303, Name: "identity deploy", Folder: "/release/identity", RepoName: "identity-api", Tags: []string{"critical"}},
 	})

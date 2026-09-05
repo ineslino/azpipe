@@ -1,5 +1,7 @@
 # Pipeline Runner TUI Implementation Plan
 
+> Historical plan, superseded. Do not execute this checklist as current instructions. See the [current operational guide](../../usage.md); preview does not establish PLAN safety and contracts are mandatory for PLAN. Original steps remain only for traceability.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fazer `azpipe` abrir uma TUI segura para selecionar, pré-validar, executar e acompanhar várias pipelines Azure DevOps.

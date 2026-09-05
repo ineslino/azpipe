@@ -9,9 +9,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/spf13/cobra"
 	"github.com/ineslino/azpipe/internal/analysis"
 	"github.com/ineslino/azpipe/internal/ui"
+	"github.com/spf13/cobra"
 )
 
 var pipelinesCmd = &cobra.Command{
@@ -201,10 +201,10 @@ func runPipelinesAnalyze(_ *cobra.Command, args []string) error {
 
 	stats := analysis.ComputeStats(runs)
 
-	// Collect stage failure data from failed/partially-succeeded runs (best-effort).
+	// Count observed completed stages across successful and failed runs.
 	stageMap := map[string]*analysis.StageStat{}
 	for _, r := range runs {
-		if r.Result != "failed" && r.Result != "partiallySucceeded" {
+		if r.State != "completed" {
 			continue
 		}
 		stages, err := client.GetBuildTimeline(ctx, proj, r.ID)
@@ -212,7 +212,7 @@ func runPipelinesAnalyze(_ *cobra.Command, args []string) error {
 			continue
 		}
 		for _, s := range stages {
-			if s.RecordType != "Stage" {
+			if s.RecordType != "Stage" || s.State != "completed" || s.Result == "skipped" {
 				continue
 			}
 			if _, ok := stageMap[s.Name]; !ok {

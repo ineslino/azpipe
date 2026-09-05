@@ -17,6 +17,7 @@ type Selection struct {
 	Pipeline azdo.Pipeline
 	Mode     Mode
 	Branch   string
+	Inputs   map[string]string
 }
 
 // ID is the stable selection identity.
@@ -26,10 +27,17 @@ func (s Selection) ID() int {
 
 // Parameters returns only parameters required by the selected mode.
 func (s Selection) Parameters() map[string]string {
-	if s.Mode == ModePlan {
-		return map[string]string{"planOnly": "true"}
+	params := map[string]string{}
+	for k, v := range s.Inputs {
+		params[k] = v
 	}
-	return map[string]string{}
+	if contract := s.Pipeline.PlanContract; contract != nil {
+		params[contract.Parameter] = contract.RunValue
+		if s.Mode == ModePlan {
+			params[contract.Parameter] = contract.PlanValue
+		}
+	}
+	return params
 }
 
 // Request builds the Azure DevOps request for this selection.
@@ -59,6 +67,7 @@ type Review struct {
 	Selection Selection
 	State     ReviewState
 	Err       error
+	Request   azdo.RunRequest
 }
 
 // RunResult is the remote run, or the error that prevented it being queued or refreshed.

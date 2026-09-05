@@ -24,7 +24,7 @@ func main() {
 		{"catalog", runner.NewDemoApp()},
 	}
 	for _, item := range models {
-		model, _ := item.model.Update(tea.WindowSizeMsg{Width: 100, Height: 28})
+		model, _ := item.model.Update(tea.WindowSizeMsg{Width: 100, Height: 32})
 		lines := strings.Split(ansi.Strip(model.View()), "\n")
 		var svg strings.Builder
 		fmt.Fprintf(&svg, `<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="%d" viewBox="0 0 1240 %d"><title>AZPIPE %s: offline model view</title><rect width="100%%" height="100%%" rx="12" fill="#101416"/><g font-family="Menlo,DejaVu Sans Mono,monospace" font-size="19" xml:space="preserve">`, len(lines)*26+40, len(lines)*26+40, item.name)

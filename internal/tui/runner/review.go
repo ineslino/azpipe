@@ -177,9 +177,9 @@ func (m reviewModel) view() string {
 		if request.PipelineID == 0 {
 			request = r.Selection.Request()
 		}
-		detail := fmt.Sprintf("Branch: %s\nSHA: %s\nDefinição: %d\nPARÂMETROS ENVIADOS: %s\nDefaults não enviados: definidos pela pipeline", request.Branch, request.Commit, request.DefinitionVersion, formatParameters(request.Parameters))
+		detail := fmt.Sprintf("Modo: %s · Branch: %s\nPARÂMETROS ENVIADOS: %s\nDefaults não enviados: definidos pela pipeline\nSHA: %s\nDefinição: %d", r.Selection.Mode, request.Branch, formatParameters(request.Parameters), request.Commit, request.DefinitionVersion)
 		if r.Err != nil {
-			detail += "\nBloqueio: " + r.Err.Error()
+			detail = "Bloqueio: " + r.Err.Error() + "\n" + detail
 		}
 		wrapped := strings.Split(ansi.Wrap(detail, width, ""), "\n")
 		scroll := min(m.horizontal, max(0, len(wrapped)-5))
@@ -197,7 +197,11 @@ func (m reviewModel) view() string {
 	} else if m.canExecute() {
 		lines = append(lines, runStyle.Render(fmt.Sprintf("Vai lançar %d pipelines. Escreva EXECUTAR para confirmar.", len(m.reviews))), m.confirmation.View())
 	} else {
-		lines = append(lines, catalogWarningStyle.Render("Execução bloqueada até todas as previews estarem prontas."))
+		if blocked > 0 {
+			lines = append(lines, catalogWarningStyle.Render("Escolhe uma pipeline com erro. Enter volta à lista para corrigir."))
+		} else {
+			lines = append(lines, catalogDetailStyle.Render("A validar a selecção. Aguarda as previews; Esc permite voltar."))
+		}
 	}
 	if m.warning != "" {
 		lines = append(lines, catalogWarningStyle.Render(m.warning))

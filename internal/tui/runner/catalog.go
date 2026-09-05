@@ -351,7 +351,7 @@ func (m CatalogModel) View() string {
 		branchLabel = "por pipeline (perfil)"
 	}
 	lines := []string{
-		catalogTitleStyle.Render(fmt.Sprintf("Pipelines · %d seleccionadas · %d visíveis", len(m.selected), len(m.visible))),
+		catalogTitleStyle.Render(truncateWidth(m.nextStep(), m.width)),
 		runStyle.Render(fmt.Sprintf("%d RUN", len(m.selected)-plans)) + "  " + planStyle.Render(fmt.Sprintf("%d PLAN", plans)) + "  " + catalogDetailStyle.Render(truncateWidth("Branch: "+branchLabel, max(1, m.width-20))),
 		m.search.View(),
 	}
@@ -450,7 +450,21 @@ func (m CatalogModel) helpView() string {
 	if m.input != inputNone {
 		return shortcutBar(max(1, m.width-4), "enter guardar e voltar à lista", "esc cancelar edição")
 	}
-	return shortcutBar(max(1, m.width-4), "↑/↓ navegar", "espaço seleccionar", "enter rever", "/ filtrar", "m modo", "e parâmetros", "b branch", "s guardar perfil", "l perfis", "h lotes", "P/R modo global", "q sair")
+	items := []string{"espaço seleccionar", "/ procurar"}
+	if len(m.selected) > 0 {
+		items = []string{fmt.Sprintf("enter rever %d pipelines", len(m.selected)), "espaço seleccionar"}
+	}
+	return shortcutBar(max(1, m.width-4), append(items, "a acções", "? ajuda", "q sair")...)
+}
+
+func (m CatalogModel) nextStep() string {
+	if len(m.visible) == 0 {
+		return "Sem resultados. Altera a pesquisa com /."
+	}
+	if len(m.selected) == 0 {
+		return "Selecciona as pipelines que queres executar."
+	}
+	return fmt.Sprintf("%d seleccionadas. Enter para rever antes de continuar.", len(m.selected))
 }
 
 func (m CatalogModel) pipelineRow(pipeline azdo.Pipeline, active bool) string {

@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Documented user-local installation, persistent PATH setup and offline verification.
+- Contextual action menu (`a` / `?`), focused footer, next-step guidance and review error recovery.
+- Responsive AZPIPE block banner in the catalog and offline demo.
 - Typed pipeline parameter forms, context-isolated profiles and resumable batch journals.
 - Explicit owner-reviewed PLAN contracts, source pinning and expanded-YAML revalidation.
 - CLI batch preview/execution, optional external authentication adapter and offline demo fixtures.

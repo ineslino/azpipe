@@ -40,6 +40,7 @@ type AppModel struct {
 	project      string
 	library      *libraryModel
 	demoProfiles []domainrunner.Profile
+	actions      *int
 }
 
 type operationToken struct {
@@ -120,6 +121,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if m.library != nil {
 		return m.libraryUpdate(msg)
+	}
+	if m.actions != nil {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			return m.updateActions(key)
+		}
 	}
 
 	switch typed := msg.(type) {
@@ -273,6 +279,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case ScreenCatalog:
 		if key, ok := msg.(tea.KeyMsg); ok && m.catalog.input == inputNone {
+			if key.String() == "a" || key.String() == "?" {
+				index := 0
+				m.actions = &index
+				return m, nil
+			}
 			kind := ""
 			switch key.String() {
 			case "s":
@@ -299,6 +310,23 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.catalog = updated.(CatalogModel)
 		return m, cmd
 	case ScreenReview:
+		if key, ok := msg.(tea.KeyMsg); ok && key.Type == tea.KeyEnter && len(m.review.reviews) > 0 {
+			r := m.review.reviews[m.review.offset]
+			if r.Err != nil {
+				m.invalidateOperation()
+				m.screen = ScreenCatalog
+				m.catalog.search.SetValue("")
+				m.catalog.filter()
+				for i, p := range m.catalog.visible {
+					if p.ID == r.Selection.ID() {
+						m.catalog.cursor = i
+						break
+					}
+				}
+				m.catalog.notice = "Corrige com a (acções), depois Enter para uma nova revisão."
+				return m, nil
+			}
+		}
 		var cmd tea.Cmd
 		m.review, cmd = m.review.update(msg)
 		return m, cmd
@@ -344,6 +372,9 @@ func (m AppModel) ExecutionError() error {
 
 // View renders the active screen.
 func (m AppModel) View() string {
+	if m.actions != nil {
+		return m.contextHeader() + m.actionsView()
+	}
 	if m.library != nil {
 		return m.contextHeader() + section("PERFIS E LOTES", m.library.view(max(1, m.width-4), max(1, m.height-2)), m.width)
 	}
@@ -351,7 +382,17 @@ func (m AppModel) View() string {
 	case ScreenContext:
 		return section("LIGAÇÃO AO AZURE DEVOPS", m.context.view(), m.width)
 	case ScreenCatalog:
-		return m.contextHeader() + m.catalog.View()
+		catalog := m.catalog
+		banner := ""
+		if catalog.input == inputNone {
+			banner = brandWhiteStyle.Render("As tuas pipelines. ") + brandLimeStyle.Render("Um só terminal.") + "\n"
+			if m.height >= 32 && m.width >= 60 {
+				parts := strings.Split(welcomeBrand(), "\n")
+				banner = strings.Join(parts[2:9], "\n") + "\n"
+			}
+			catalog.height -= strings.Count(banner, "\n")
+		}
+		return banner + m.contextHeader() + catalog.View()
 	case ScreenReview:
 		return m.contextHeader() + section("VALIDAÇÃO DO LOTE", m.review.view(), m.width)
 	case ScreenExecution:

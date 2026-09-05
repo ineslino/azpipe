@@ -32,6 +32,33 @@ Não substitui Azure DevOps, não cancela runs remotas e não executa Terraform 
 
 ## Instalar e abrir
 
+### Comando disponível em qualquer directório (macOS / Linux / WSL)
+
+Com Go 1.26.3+, executa na raiz do repo:
+
+```bash
+mkdir -p "$HOME/.local/bin"
+go build -o "$HOME/.local/bin/azpipe" .
+export PATH="$HOME/.local/bin:$PATH"
+azpipe --help
+azpipe demo
+```
+
+O build instala a versão deste checkout e substitui um binário `azpipe` existente nesse destino. Não actualiza automaticamente: repete o build depois de actualizar o código.
+
+Se a pasta ainda não estiver no `PATH` dos novos terminais, acrescenta uma única vez `export PATH="$HOME/.local/bin:$PATH"` ao `~/.zshrc` (zsh) ou `~/.bashrc` (bash) e abre um terminal novo. Em bash login, confirma que o perfil carrega o `.bashrc`. Não é necessário `sudo`.
+
+Depois, em qualquer directório:
+
+```bash
+azpipe          # Abrir a TUI
+azpipe --help   # Ajuda; também aceita -h
+azpipe demo     # Experimentar offline, sem lançar pipelines
+command -v azpipe
+```
+
+### Executar sem instalar
+
 Para usar exactamente o código deste checkout:
 
 ```bash
@@ -51,6 +78,7 @@ Usa `AZDO_PAT` injectado pelo teu mecanismo de credenciais e `AZDO_ORG` para o c
 
 | Tecla | Acção |
 | --- | --- |
+| `a` / `?` | Menu de acções e ajuda, com descrições e motivos de indisponibilidade |
 | Setas / `j` / `k` | Navegar |
 | `/` / espaço | Filtrar / seleccionar |
 | `m` / `P` / `R` | Alternar modo / PLAN para selecção / RUN para selecção |

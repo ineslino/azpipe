@@ -32,6 +32,33 @@ This does not replace Azure DevOps, cancel remote runs or run Terraform locally.
 
 ## Install and launch
 
+### Command available from any directory (macOS / Linux / WSL)
+
+With Go 1.26.3+, run from the repository root:
+
+```bash
+mkdir -p "$HOME/.local/bin"
+go build -o "$HOME/.local/bin/azpipe" .
+export PATH="$HOME/.local/bin:$PATH"
+azpipe --help
+azpipe demo
+```
+
+The build installs this checkout and replaces an existing `azpipe` binary at that destination. Updates are not automatic: repeat the build after updating the source.
+
+If new terminals do not already include this directory in `PATH`, add `export PATH="$HOME/.local/bin:$PATH"` once to `~/.zshrc` (zsh) or `~/.bashrc` (bash), then open a new terminal. For login bash, ensure the profile loads `.bashrc`. No `sudo` is needed.
+
+Then, from any directory:
+
+```bash
+azpipe          # Open the TUI
+azpipe --help   # Help; -h also works
+azpipe demo     # Explore offline, without submitting pipelines
+command -v azpipe
+```
+
+### Run without installing
+
 To use exactly this checkout:
 
 ```bash
@@ -51,6 +78,7 @@ Use `AZDO_PAT` injected by your credential mechanism and `AZDO_ORG` for context.
 
 | Key | Action |
 | --- | --- |
+| `a` / `?` | Actions and help menu, with descriptions and reasons for unavailable options |
 | Arrows / `j` / `k` | Navigate |
 | `/` / Space | Filter / select |
 | `m` / `P` / `R` | Toggle mode / PLAN for selection / RUN for selection |

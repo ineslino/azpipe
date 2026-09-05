@@ -6,6 +6,10 @@ mapping — without leaving the shell.
 
 ## Install
 
+For installation of the current checkout into `~/.local/bin`, persistent shell PATH
+configuration and verification from any directory, see the [installation guide](../README.en.md#install-and-launch).
+The installed binary is a snapshot of the build, not a link to the source or an automatic updater.
+
 ### From source (Go 1.26.3+)
 
 ```bash
@@ -62,6 +66,16 @@ credentials, create an Azure DevOps client, make network calls, or expose an act
 that can queue a pipeline.
 
 ### Shortcuts
+
+Start with `a` or `?`: arrows choose an action and Enter opens it. Disabled actions
+explain why they are unavailable and cannot be activated. Esc closes the menu
+without changing the selection. Existing shortcuts remain available in the catalog;
+the contextual footer only shows the primary actions. On review errors, select the
+affected row and press Enter to return to that pipeline for correction and a fresh
+preview. Exact execution confirmation is unchanged.
+
+The catalog and offline demo show the AZPIPE block banner at 60+ columns and 32+
+rows. Shorter terminals keep the compact identity and description to preserve rows.
 
 | Key | Action |
 |-----|--------|

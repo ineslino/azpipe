@@ -16,11 +16,15 @@ func TestPreviewPipelineNormalizesBranchAndSendsParameters(t *testing.T) {
 		Resources struct {
 			Repositories map[string]struct {
 				RefName string `json:"refName"`
+				Version string `json:"version"`
 			} `json:"repositories"`
 		} `json:"resources"`
 		TemplateParameters map[string]string `json:"templateParameters"`
 	}
 	server := newPipelineServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("pipelineVersion") != "7" {
+			t.Error("definition version missing")
+		}
 		if r.Method != http.MethodPost {
 			t.Fatalf("preview request method = %s, want POST", r.Method)
 		}
@@ -32,9 +36,11 @@ func TestPreviewPipelineNormalizesBranchAndSendsParameters(t *testing.T) {
 
 	client := New(server.URL, "token")
 	err := client.PreviewPipeline(context.Background(), "sample-project", RunRequest{
-		PipelineID: 742,
-		Branch:     "main",
-		Parameters: map[string]string{"planOnly": "true"},
+		PipelineID:        742,
+		Branch:            "main",
+		Parameters:        map[string]string{"planOnly": "true"},
+		Commit:            "0123456789012345678901234567890123456789",
+		DefinitionVersion: 7,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -42,6 +48,9 @@ func TestPreviewPipelineNormalizesBranchAndSendsParameters(t *testing.T) {
 
 	if got := received.Resources.Repositories["self"].RefName; got != "refs/heads/main" {
 		t.Fatalf("self ref = %q, want %q", got, "refs/heads/main")
+	}
+	if received.Resources.Repositories["self"].Version != "0123456789012345678901234567890123456789" {
+		t.Fatal("commit not pinned")
 	}
 	if got := received.TemplateParameters["planOnly"]; got != "true" {
 		t.Fatalf("planOnly = %q, want %q", got, "true")

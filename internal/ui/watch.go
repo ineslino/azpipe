@@ -84,7 +84,10 @@ func (m WatchModel) fetchStatus() tea.Cmd {
 			if err != nil || len(runs) == 0 {
 				return watchErrMsg{fmt.Errorf("no active or recent runs found for pipeline %d", m.pipelineID)}
 			}
-			return runCompleteMsg{result: runs[0].Result}
+			if runs[0].State == "completed" {
+				return runCompleteMsg{result: runs[0].Result}
+			}
+			run = &runs[0]
 		}
 
 		stages, _ := m.client.GetBuildTimeline(ctx, m.project, run.ID)

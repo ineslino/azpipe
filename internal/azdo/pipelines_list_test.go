@@ -47,11 +47,8 @@ func TestListPipelineDefinitionsReturnsTagErrorWithPipelineID(t *testing.T) {
 	}
 
 	pipelines, err := listPipelineDefinitions(context.Background(), client, "sample-project")
-	if err == nil || !strings.Contains(err.Error(), "pipeline 22") || !strings.Contains(err.Error(), "forbidden") {
-		t.Fatalf("tag error = %v, want pipeline 22 and forbidden", err)
-	}
-	if pipelines != nil {
-		t.Fatalf("pipelines after tag error = %#v, want nil", pipelines)
+	if err != nil || len(pipelines) != 1 || !strings.Contains(pipelines[0].MetadataWarning, "forbidden") {
+		t.Fatalf("catalog must survive tags failure: %#v, %v", pipelines, err)
 	}
 }
 
@@ -61,10 +58,37 @@ type fakePipelineBuildClient struct {
 	tagErrors     map[int]error
 	current       atomic.Int32
 	maxConcurrent atomic.Int32
+	pages         map[string]build.GetDefinitionsResponseValue
+	tokens        []string
 }
 
-func (c *fakePipelineBuildClient) GetDefinitions(context.Context, build.GetDefinitionsArgs) (*build.GetDefinitionsResponseValue, error) {
+func (c *fakePipelineBuildClient) GetDefinitions(_ context.Context, args build.GetDefinitionsArgs) (*build.GetDefinitionsResponseValue, error) {
+	if c.pages != nil {
+		token := ""
+		if args.ContinuationToken != nil {
+			token = *args.ContinuationToken
+		}
+		c.tokens = append(c.tokens, token)
+		page := c.pages[token]
+		return &page, nil
+	}
 	return &build.GetDefinitionsResponseValue{Value: c.definitions}, nil
+}
+
+func TestPipelinePagination(t *testing.T) {
+	one, two := 1, 2
+	client := &fakePipelineBuildClient{pages: map[string]build.GetDefinitionsResponseValue{
+		"":     {Value: []build.BuildDefinitionReference{{Id: &one}}, ContinuationToken: "next"},
+		"next": {Value: []build.BuildDefinitionReference{{Id: &two}}},
+	}}
+	result, err := listPipelineDefinitions(context.Background(), client, "example")
+	if err != nil || len(result) != 2 || result[1].ID != 2 || len(client.tokens) != 2 {
+		t.Fatalf("pagination: %v %v", result, err)
+	}
+	client.pages["next"] = build.GetDefinitionsResponseValue{ContinuationToken: "next"}
+	if _, err := listPipelineDefinitions(context.Background(), client, "example"); err == nil {
+		t.Fatal("repeated token accepted")
+	}
 }
 
 func (c *fakePipelineBuildClient) GetDefinitionTags(_ context.Context, args build.GetDefinitionTagsArgs) (*[]string, error) {

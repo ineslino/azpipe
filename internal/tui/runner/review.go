@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	domainrunner "github.com/ineslino/azpipe/internal/runner"
 )
 
@@ -29,12 +30,22 @@ type reviewModel struct {
 	demo         bool
 	warning      string
 	token        operationToken
+	offset       int
+	height       int
+	width        int
+	horizontal   int
 }
 
 func newReviewModel(selections []domainrunner.Selection, demo bool, token operationToken) reviewModel {
 	reviews := make([]domainrunner.Review, len(selections))
 	for index, selection := range selections {
 		reviews[index] = domainrunner.Review{Selection: selection, State: domainrunner.ReviewPending}
+		if demo {
+			request := selection.Request()
+			request.Commit = "0123456789012345678901234567890123456789"
+			request.DefinitionVersion = 7
+			reviews[index].Request = request
+		}
 	}
 	confirmation := textinput.New()
 	confirmation.Prompt = "Confirmação: "
@@ -50,8 +61,35 @@ func previewSelections(service domainrunner.Service, selections []domainrunner.S
 }
 
 func (m reviewModel) update(msg tea.Msg) (reviewModel, tea.Cmd) {
+	if size, ok := msg.(tea.WindowSizeMsg); ok {
+		m.height = size.Height
+		m.width = size.Width
+		return m, nil
+	}
 	if key, ok := msg.(tea.KeyMsg); ok {
 		switch key.String() {
+		case "right":
+			m.horizontal++
+			return m, nil
+		case "left":
+			m.horizontal = max(0, m.horizontal-1)
+			return m, nil
+		case "pgdown":
+			m.offset = min(max(0, len(m.reviews)-1), m.offset+m.listCapacity())
+			m.horizontal = 0
+			return m, nil
+		case "pgup":
+			m.offset = max(0, m.offset-m.listCapacity())
+			m.horizontal = 0
+			return m, nil
+		case "down", "up":
+			if key.String() == "down" {
+				m.offset = min(max(0, len(m.reviews)-1), m.offset+1)
+			} else {
+				m.offset = max(0, m.offset-1)
+			}
+			m.horizontal = 0
+			return m, nil
 		case "ctrl+c", "ctrl+d", "q":
 			return m, tea.Quit
 		case "enter":
@@ -84,32 +122,87 @@ func (m reviewModel) canExecute() bool {
 	return true
 }
 
-func (m reviewModel) view() string {
-	lines := []string{
-		catalogTitleStyle.Render("Revisão"),
-		catalogHeaderStyle.Render("ESTADO MODE    ID PIPELINE BRANCH PARÂMETROS"),
+func (m reviewModel) listCapacity() int {
+	height := m.height
+	if height == 0 {
+		height = defaultHeight
 	}
-	for _, review := range m.reviews {
-		state := string(review.State)
+	return max(1, height-17)
+}
+
+func (m reviewModel) view() string {
+	width, height := m.width, m.height
+	if width == 0 {
+		width = defaultWidth
+	}
+	if height == 0 {
+		height = defaultHeight
+	}
+	ready, blocked := 0, 0
+	for _, r := range m.reviews {
+		if r.Err != nil {
+			blocked++
+		} else if r.State == domainrunner.ReviewReady {
+			ready++
+		}
+	}
+	columns := []int{2, 8, 4, 5, max(1, width-31)}
+	lines := []string{catalogTitleStyle.Render(fmt.Sprintf("Revisão · %d pipelines · %d prontas · %d bloqueadas", len(m.reviews), ready, blocked)), catalogHeaderStyle.Width(width).Render(tableCells(columns, "", "ESTADO", "MODO", "ID", "PIPELINE"))}
+	start := m.offset / m.listCapacity() * m.listCapacity()
+	end := min(len(m.reviews), start+m.listCapacity())
+	for i := start; i < end; i++ {
+		r := m.reviews[i]
+		state := string(r.State)
 		if m.demo {
 			state = "DEMO"
 		}
-		request := review.Selection.Request()
-		line := fmt.Sprintf("%-6s %-4s %5d %s %s %s", state, review.Selection.Mode, review.Selection.Pipeline.ID, review.Selection.Pipeline.Name, request.Branch, formatParameters(request.Parameters))
-		if review.Err != nil {
-			line += ": " + review.Err.Error()
+		marker := " "
+		if i == m.offset {
+			marker = ">"
 		}
-		lines = append(lines, line)
+		line := tableCells(columns, marker, state, string(r.Selection.Mode), fmt.Sprint(r.Selection.ID()), r.Selection.Pipeline.Name)
+		style := modeStyle(string(r.Selection.Mode))
+		if r.Err != nil {
+			style = catalogWarningStyle
+		}
+		if i == m.offset {
+			style = catalogActiveStyle.Width(width)
+		}
+		lines = append(lines, style.Render(line))
+	}
+	lines = append(lines, catalogDetailStyle.Render(fmt.Sprintf("  %d–%d de %d · ↑/↓ escolher pipeline", min(start+1, len(m.reviews)), end, len(m.reviews))))
+	if len(m.reviews) > 0 {
+		r := m.reviews[m.offset]
+		request := r.Request
+		if request.PipelineID == 0 {
+			request = r.Selection.Request()
+		}
+		detail := fmt.Sprintf("Branch: %s\nSHA: %s\nDefinição: %d\nPARÂMETROS ENVIADOS: %s\nDefaults não enviados: definidos pela pipeline", request.Branch, request.Commit, request.DefinitionVersion, formatParameters(request.Parameters))
+		if r.Err != nil {
+			detail += "\nBloqueio: " + r.Err.Error()
+		}
+		wrapped := strings.Split(ansi.Wrap(detail, width, ""), "\n")
+		scroll := min(m.horizontal, max(0, len(wrapped)-5))
+		lines = append(lines, catalogHeaderStyle.Render(truncateWidth("── Detalhe · "+r.Selection.Pipeline.Name, width)))
+		for _, line := range wrapped[scroll:min(len(wrapped), scroll+5)] {
+			lines = append(lines, catalogDetailStyle.Render(line))
+		}
+		lines = append(lines, catalogDetailStyle.Render(fmt.Sprintf("Detalhe %d–%d/%d · ←/→ deslocar", scroll+1, min(len(wrapped), scroll+5), len(wrapped))))
+	}
+	for len(lines) < height-7 {
+		lines = append(lines, "")
 	}
 	if m.demo {
 		lines = append(lines, catalogDetailStyle.Render("Demo offline: nenhuma pipeline será executada."))
 	} else if m.canExecute() {
-		lines = append(lines, "Escreva EXECUTAR para colocar todas as pipelines em execução.", m.confirmation.View())
+		lines = append(lines, runStyle.Render(fmt.Sprintf("Vai lançar %d pipelines. Escreva EXECUTAR para confirmar.", len(m.reviews))), m.confirmation.View())
+	} else {
+		lines = append(lines, catalogWarningStyle.Render("Execução bloqueada até todas as previews estarem prontas."))
 	}
 	if m.warning != "" {
 		lines = append(lines, catalogWarningStyle.Render(m.warning))
 	}
-	lines = append(lines, catalogFooterStyle.Render("esc voltar • q sair"))
+	lines = append(lines, shortcutBar(width, "pgup/pgdown página", "esc voltar e editar", "q sair"))
 	return strings.Join(lines, "\n")
 }
 

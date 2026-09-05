@@ -100,9 +100,12 @@ func (m *MockClient) GetPipelineRun(_ context.Context, _ string, runID int) (Pip
 
 func cloneRunRequest(request RunRequest) RunRequest {
 	clone := RunRequest{
-		PipelineID: request.PipelineID,
-		Branch:     request.Branch,
-		Parameters: make(map[string]string, len(request.Parameters)),
+		PipelineID:        request.PipelineID,
+		Branch:            request.Branch,
+		Commit:            request.Commit,
+		DefinitionVersion: request.DefinitionVersion,
+		PreviewHash:       request.PreviewHash,
+		Parameters:        make(map[string]string, len(request.Parameters)),
 	}
 	for key, value := range request.Parameters {
 		clone.Parameters[key] = value

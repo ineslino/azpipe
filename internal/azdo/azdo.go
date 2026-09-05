@@ -2,6 +2,7 @@ package azdo
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"sort"
 	"strconv"
@@ -17,7 +18,8 @@ import (
 )
 
 type azdoClient struct {
-	conn *azuredevops.Connection
+	conn      *azuredevops.Connection
+	contracts []PlanContract
 }
 
 const pipelineTagParallelism = 4
@@ -96,22 +98,50 @@ func (c *azdoClient) ListPipelines(ctx context.Context, project string) ([]Pipel
 	if err != nil {
 		return nil, fmt.Errorf("create build client: %w", err)
 	}
-	return listPipelineDefinitions(ctx, bc, project)
+	result, err := listPipelineDefinitions(ctx, bc, project)
+	for i := range result {
+		for _, contract := range c.contracts {
+			if contract.PipelineID == result[i].ID && contract.Project == project && strings.TrimRight(contract.Organization, "/") == strings.TrimRight(c.conn.BaseUrl, "/") {
+				copy := contract
+				result[i].PlanContract = &copy
+			}
+		}
+	}
+	return result, err
 }
 
 func listPipelineDefinitions(ctx context.Context, bc pipelineBuildClient, project string) ([]Pipeline, error) {
 	top := 500
 	incLatest := true
-	defs, err := bc.GetDefinitions(ctx, build.GetDefinitionsArgs{
-		Project:             &project,
-		Top:                 &top,
-		IncludeLatestBuilds: &incLatest,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list pipelines: %w", err)
+	var definitions []build.BuildDefinitionReference
+	var token *string
+	seen := map[string]bool{}
+	for {
+		defs, err := bc.GetDefinitions(ctx, build.GetDefinitionsArgs{
+			Project:             &project,
+			Top:                 &top,
+			IncludeLatestBuilds: &incLatest,
+			ContinuationToken:   token,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list pipelines: %w", err)
+		}
+		if defs == nil {
+			return nil, fmt.Errorf("list pipelines: empty response")
+		}
+		definitions = append(definitions, defs.Value...)
+		if defs.ContinuationToken == "" {
+			break
+		}
+		next := defs.ContinuationToken
+		if seen[next] {
+			return nil, fmt.Errorf("list pipelines: repeated continuation token")
+		}
+		seen[next] = true
+		token = &next
 	}
-	result := make([]Pipeline, len(defs.Value))
-	for index, d := range defs.Value {
+	result := make([]Pipeline, len(definitions))
+	for index, d := range definitions {
 		result[index] = Pipeline{
 			ID:     derefInt(d.Id),
 			Name:   derefStr(d.Name),
@@ -121,10 +151,12 @@ func listPipelineDefinitions(ctx context.Context, bc pipelineBuildClient, projec
 		if d.LatestBuild != nil && d.LatestBuild.Repository != nil {
 			result[index].RepoName = derefStr(d.LatestBuild.Repository.Name)
 		}
+		if result[index].RepoName == "" {
+			result[index].MetadataWarning = "repositório não disponível no último build"
+		}
 	}
 
 	jobs := make(chan int)
-	errs := make([]error, len(result))
 	workers := min(pipelineTagParallelism, len(result))
 	var group sync.WaitGroup
 	group.Add(workers)
@@ -133,12 +165,25 @@ func listPipelineDefinitions(ctx context.Context, bc pipelineBuildClient, projec
 			defer group.Done()
 			for index := range jobs {
 				definitionID := result[index].ID
+				if result[index].RepoName == "" {
+					if detailed, ok := bc.(interface {
+						GetDefinition(context.Context, build.GetDefinitionArgs) (*build.BuildDefinition, error)
+					}); ok {
+						definition, err := detailed.GetDefinition(ctx, build.GetDefinitionArgs{Project: &project, DefinitionId: &definitionID})
+						if err == nil && definition != nil && definition.Repository != nil {
+							result[index].RepoName = derefStr(definition.Repository.Name)
+							if result[index].RepoName != "" {
+								result[index].MetadataWarning = ""
+							}
+						}
+					}
+				}
 				tags, tagErr := bc.GetDefinitionTags(ctx, build.GetDefinitionTagsArgs{
 					Project:      &project,
 					DefinitionId: &definitionID,
 				})
 				if tagErr != nil {
-					errs[index] = fmt.Errorf("get tags for pipeline %d: %w", definitionID, tagErr)
+					result[index].MetadataWarning += fmt.Sprintf("; tags indisponíveis para pipeline %d: %v", definitionID, tagErr)
 					continue
 				}
 				if tags != nil {
@@ -153,11 +198,6 @@ func listPipelineDefinitions(ctx context.Context, bc pipelineBuildClient, projec
 	close(jobs)
 	group.Wait()
 
-	for _, tagErr := range errs {
-		if tagErr != nil {
-			return nil, tagErr
-		}
-	}
 	return result, nil
 }
 
@@ -271,26 +311,47 @@ func (c *azdoClient) GetRepoPipelines(ctx context.Context, project string, repoN
 }
 
 func (c *azdoClient) PreviewPipeline(ctx context.Context, project string, request RunRequest) error {
-	pc := pipelines.NewClient(ctx, c.conn)
-	runParams := runParameters(request)
-	_, err := pc.Preview(ctx, pipelines.PreviewArgs{
-		Project:       &project,
-		PipelineId:    &request.PipelineID,
-		RunParameters: &runParams,
-	})
+	hash, err := c.previewHash(ctx, project, request)
 	if err != nil {
-		return fmt.Errorf("preview pipeline: %w", err)
+		return err
+	}
+	if request.PreviewHash != "" && hash != request.PreviewHash {
+		return fmt.Errorf("YAML expandido mudou: repetir revisão")
 	}
 	return nil
 }
 
+func (c *azdoClient) previewHash(ctx context.Context, project string, request RunRequest) (string, error) {
+	pc := pipelines.NewClient(ctx, c.conn)
+	runParams := runParameters(request)
+	preview, err := pc.Preview(ctx, pipelines.PreviewArgs{
+		Project:         &project,
+		PipelineId:      &request.PipelineID,
+		RunParameters:   &runParams,
+		PipelineVersion: optionalVersion(request.DefinitionVersion),
+	})
+	if err != nil {
+		return "", fmt.Errorf("preview pipeline: %w", err)
+	}
+	if preview == nil || preview.FinalYaml == nil {
+		return "", fmt.Errorf("preview sem YAML expandido")
+	}
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(*preview.FinalYaml))), nil
+}
+
 func (c *azdoClient) QueuePipeline(ctx context.Context, project string, request RunRequest) (PipelineRun, error) {
+	if request.PreviewHash != "" {
+		if err := c.PreviewPipeline(ctx, project, request); err != nil {
+			return PipelineRun{}, err
+		}
+	}
 	pc := pipelines.NewClient(ctx, c.conn)
 	runParams := runParameters(request)
 	queued, err := pc.RunPipeline(ctx, pipelines.RunPipelineArgs{
-		Project:       &project,
-		PipelineId:    &request.PipelineID,
-		RunParameters: &runParams,
+		Project:         &project,
+		PipelineId:      &request.PipelineID,
+		RunParameters:   &runParams,
+		PipelineVersion: optionalVersion(request.DefinitionVersion),
 	})
 	if err != nil {
 		return PipelineRun{}, fmt.Errorf("queue pipeline: %w", err)
@@ -334,11 +395,24 @@ func runParameters(request RunRequest) pipelines.RunPipelineParameters {
 	return pipelines.RunPipelineParameters{
 		Resources: &pipelines.RunResourcesParameters{
 			Repositories: &map[string]pipelines.RepositoryResourceParameters{
-				"self": {RefName: &ref},
+				"self": {RefName: &ref, Version: optionalCommit(request.Commit)},
 			},
 		},
 		TemplateParameters: &params,
 	}
+}
+
+func optionalVersion(value int) *int {
+	if value == 0 {
+		return nil
+	}
+	return &value
+}
+func optionalCommit(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 func normalizeBranch(branch string) string {

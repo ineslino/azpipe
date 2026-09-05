@@ -18,12 +18,21 @@ var ErrPreviewIncomplete = errors.New("pipeline preview is incomplete")
 
 // Service coordinates preview, queue, and refresh operations for a project.
 type Service struct {
-	client  azdo.Client
-	project string
+	client   azdo.Client
+	project  string
+	OnResult func(int, RunResult) error
 }
 
 func NewService(client azdo.Client, project string) Service {
 	return Service{client: client, project: project}
+}
+
+func (s Service) Schema(ctx context.Context, id int, branch string) (azdo.ParameterSchema, error) {
+	provider, ok := s.client.(azdo.SchemaProvider)
+	if !ok {
+		return azdo.ParameterSchema{}, errors.New("cliente sem descoberta de parâmetros YAML")
+	}
+	return provider.GetPipelineSchema(ctx, s.project, id, branch)
 }
 
 // PreviewAll previews every selection and returns reviews in selection order.
@@ -32,10 +41,34 @@ func (s Service) PreviewAll(ctx context.Context, selections []Selection, paralle
 	runParallel(len(selections), parallel, func(index int) {
 		selection := selections[index]
 		operationCtx, cancel := context.WithTimeout(ctx, operationTimeout)
-		err := s.client.PreviewPipeline(operationCtx, s.project, selection.Request())
+		request := selection.Request()
+		var err error
+		var schema *azdo.ParameterSchema
+		if provider, ok := s.client.(azdo.SchemaProvider); ok {
+			loaded, loadErr := provider.GetPipelineSchema(operationCtx, s.project, selection.ID(), selection.Branch)
+			err = loadErr
+			if err == nil {
+				schema = &loaded
+				err = loaded.Validate(request.Parameters)
+			}
+		}
+		if selection.Mode == ModePlan && selection.Pipeline.PlanContract == nil {
+			err = errors.New("PLAN indisponível: contrato validado em falta")
+		}
+		if prepare, ok := s.client.(interface {
+			PrepareRun(context.Context, string, azdo.RunRequest) (azdo.RunRequest, error)
+		}); ok && err == nil {
+			request, err = prepare.PrepareRun(operationCtx, s.project, request)
+			if err == nil && schema != nil && (schema.Commit != request.Commit || schema.DefinitionVersion != request.DefinitionVersion) {
+				err = errors.New("fonte alterada durante revisão; repetir preview")
+			}
+		}
+		if err == nil {
+			err = s.client.PreviewPipeline(operationCtx, s.project, request)
+		}
 		cancel()
 
-		reviews[index] = Review{Selection: selection, State: ReviewReady, Err: err}
+		reviews[index] = Review{Selection: selection, Request: request, State: ReviewReady, Err: err}
 		if err != nil {
 			reviews[index].State = ReviewError
 		}
@@ -46,9 +79,22 @@ func (s Service) PreviewAll(ctx context.Context, selections []Selection, paralle
 // QueueAll queues only fully previewed selections. It finishes every permitted
 // queue request before reporting any partial failures.
 func (s Service) QueueAll(ctx context.Context, reviews []Review, parallel int) ([]RunResult, error) {
+	if len(reviews) == 0 {
+		return nil, ErrPreviewIncomplete
+	}
 	for _, review := range reviews {
 		if review.State != ReviewReady || review.Err != nil {
 			return nil, ErrPreviewIncomplete
+		}
+	}
+	for _, review := range reviews {
+		if review.Request.PreviewHash != "" {
+			operation, cancel := context.WithTimeout(ctx, operationTimeout)
+			err := s.client.PreviewPipeline(operation, s.project, review.Request)
+			cancel()
+			if err != nil {
+				return nil, errors.Join(ErrPreviewIncomplete, err)
+			}
 		}
 	}
 
@@ -56,9 +102,18 @@ func (s Service) QueueAll(ctx context.Context, reviews []Review, parallel int) (
 	runParallel(len(reviews), parallel, func(index int) {
 		review := reviews[index]
 		operationCtx, cancel := context.WithTimeout(ctx, operationTimeout)
-		run, err := s.client.QueuePipeline(operationCtx, s.project, review.Selection.Request())
+		request := review.Request
+		if request.PipelineID == 0 {
+			request = review.Selection.Request()
+		}
+		run, err := s.client.QueuePipeline(operationCtx, s.project, request)
 		cancel()
 		runs[index] = RunResult{Review: review, Run: run, Err: err}
+		if s.OnResult != nil {
+			if persistErr := s.OnResult(index, runs[index]); persistErr != nil {
+				runs[index].Err = errors.Join(runs[index].Err, persistErr)
+			}
+		}
 	})
 
 	var errs []error

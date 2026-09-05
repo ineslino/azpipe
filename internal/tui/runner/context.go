@@ -45,6 +45,7 @@ func newContextModel(defaults ContextDefaults) contextModel {
 	organization.Prompt = "Organização: "
 	organization.CharLimit = 256
 	organization.Width = 48
+	organization.PromptStyle = keyStyle
 	organization.SetValue(defaults.Organization)
 	organization.Focus()
 
@@ -52,6 +53,7 @@ func newContextModel(defaults ContextDefaults) contextModel {
 	project.Prompt = "Projecto: "
 	project.CharLimit = 256
 	project.Width = 48
+	project.PromptStyle = keyStyle
 	project.SetValue(defaults.Project)
 
 	return contextModel{organization: organization, project: project}
@@ -108,6 +110,8 @@ func (m *contextModel) setFocus(focus int) {
 
 func (m contextModel) view() string {
 	lines := []string{
+		welcomeBrand(),
+		"",
 		catalogTitleStyle.Render("Contexto Azure DevOps"),
 		"Introduza a organização e o projecto. A autenticação é lida da configuração local.",
 		m.organization.View(),
@@ -116,7 +120,7 @@ func (m contextModel) view() string {
 	if m.err != "" {
 		lines = append(lines, catalogWarningStyle.Render(m.err))
 	}
-	lines = append(lines, catalogFooterStyle.Render("tab mudar campo • enter continuar • esc sair"))
+	lines = append(lines, "", shortcutBar(defaultWidth, "tab mudar campo", "enter continuar", "esc sair"))
 	return strings.Join(lines, "\n")
 }
 

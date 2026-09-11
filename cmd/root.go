@@ -114,11 +114,14 @@ func clientForOrganization(orgURL string) (azdo.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	if executable := os.Getenv("AZPIPE_AZDO_AS"); executable != "" {
-		if os.Getenv("AZPIPE_EXPECTED_IDENTITY") == "" || os.Getenv("AZPIPE_AUTH_PROFILE") == "" {
-			return nil, fmt.Errorf("azdo-as requer AZPIPE_EXPECTED_IDENTITY e AZPIPE_AUTH_PROFILE")
+	executable := firstNonEmpty(os.Getenv("AZPIPE_AZDO_AS"), config.AuthExecutable())
+	profile := firstNonEmpty(os.Getenv("AZPIPE_AUTH_PROFILE"), config.AuthProfile())
+	expectedIdentity := firstNonEmpty(os.Getenv("AZPIPE_EXPECTED_IDENTITY"), config.ExpectedIdentity())
+	if executable != "" {
+		if expectedIdentity == "" || profile == "" {
+			return nil, fmt.Errorf("a configuração do adaptador de credenciais está incompleta")
 		}
-		c := &azdo.CommandClient{Executable: executable, Organization: orgURL, Profile: os.Getenv("AZPIPE_AUTH_PROFILE"), ExpectedIdentity: os.Getenv("AZPIPE_EXPECTED_IDENTITY"), Contracts: contracts}
+		c := &azdo.CommandClient{Executable: executable, Organization: orgURL, Profile: profile, ExpectedIdentity: expectedIdentity, Contracts: contracts}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := c.VerifyIdentity(ctx); err != nil {
@@ -131,6 +134,15 @@ func clientForOrganization(orgURL string) (azdo.Client, error) {
 		return nil, err
 	}
 	return azdo.NewWithContracts(orgURL, pat, contracts), nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 // toOrgURL ensures the org value is a full Azure DevOps URL.

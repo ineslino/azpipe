@@ -73,7 +73,7 @@ A TUI pede a organização e valida a sessão com as credenciais configuradas. D
 go install github.com/ineslino/azpipe@latest
 ```
 
-Usa `AZDO_PAT` injectado pelo teu mecanismo de credenciais e `AZDO_ORG` para o contexto. Não coloques tokens em exemplos, perfis ou parâmetros. O comando legado `auth set` persiste o PAT; não é a opção recomendada. O adaptador opcional `azdo-as`, as permissões e os contratos PLAN estão no [guia operacional](docs/usage.md).
+Usa `AZDO_PAT` injectado pelo teu mecanismo de credenciais e `AZDO_ORG` para o contexto, ou configura um adaptador externo uma vez com `azpipe auth set`. Não coloques tokens em exemplos, perfis ou parâmetros. O comando legado `auth set --pat` persiste o PAT; não é a opção recomendada. O adaptador opcional, as permissões e os contratos PLAN estão no [guia operacional](docs/usage.md).
 
 ## Utilização
 

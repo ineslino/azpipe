@@ -31,9 +31,12 @@ func Init() {
 	_ = viper.ReadInConfig()
 }
 
-func PAT() string     { return viper.GetString("pat") }
-func Org() string     { return viper.GetString("org") }
-func Project() string { return viper.GetString("project") }
+func PAT() string              { return viper.GetString("pat") }
+func Org() string              { return viper.GetString("org") }
+func Project() string          { return viper.GetString("project") }
+func AuthExecutable() string   { return viper.GetString("auth_executable") }
+func AuthProfile() string      { return viper.GetString("auth_profile") }
+func ExpectedIdentity() string { return viper.GetString("expected_identity") }
 
 func SetPAT(pat string) error {
 	viper.Set("pat", pat)
@@ -50,6 +53,14 @@ func SetProject(project string) error {
 	return save(map[string]string{"project": project})
 }
 
+func SetAuth(executable, profile, expectedIdentity string) error {
+	return save(map[string]string{
+		"auth_executable":   executable,
+		"auth_profile":      profile,
+		"expected_identity": expectedIdentity,
+	})
+}
+
 func save(changes map[string]string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -60,14 +71,14 @@ func save(changes map[string]string) error {
 		return err
 	}
 	path := filepath.Join(dir, configFile+"."+configType)
-	values := make(map[string]string, 3)
+	values := make(map[string]string, 6)
 	if contents, readErr := os.ReadFile(path); readErr == nil && len(contents) > 0 {
 		existing := viper.New()
 		existing.SetConfigType(configType)
 		if err := existing.ReadConfig(bytes.NewReader(contents)); err != nil {
 			return err
 		}
-		for _, key := range []string{"pat", "org", "project"} {
+		for _, key := range []string{"pat", "org", "project", "auth_executable", "auth_profile", "expected_identity"} {
 			if existing.IsSet(key) {
 				values[key] = existing.GetString(key)
 			}

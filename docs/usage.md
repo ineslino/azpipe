@@ -55,6 +55,19 @@ azpipe pipelines watch 42 --project myproject
 but persisted PATs are legacy. It writes `~/.config/azpipe/config.yaml`; use
 `AZDO_PAT` or an external credential-injection mechanism for normal use.
 
+An external credential adapter can be configured once without storing a secret:
+
+```bash
+azpipe auth set --org myorg \
+  --auth-executable /path/to/credential-adapter \
+  --auth-profile my-profile \
+  --expected-identity user@example.com
+```
+
+Environment variables override these local settings when present. The adapter
+configuration is portable metadata; the adapter remains responsible for storing
+and resolving credentials.
+
 ## Interactive pipeline runner
 
 Running `azpipe` with no subcommand opens the pipeline runner. It validates the

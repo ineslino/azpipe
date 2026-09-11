@@ -29,6 +29,31 @@ func TestSetPAT_WritesConfigWithRestrictedPermissions(t *testing.T) {
 	}
 }
 
+func TestSetAuthPersistsAdapterMetadataWithoutPAT(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	if err := SetAuth("/bin/adapter", "profile", "user@example.com"); err != nil {
+		t.Fatalf("SetAuth: %v", err)
+	}
+
+	contents, err := os.ReadFile(filepath.Join(home, configDir, configFile+"."+configType))
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := string(contents)
+	for _, expected := range []string{"auth_executable", "auth_profile", "expected_identity", "/bin/adapter", "profile", "user@example.com"} {
+		if !strings.Contains(value, expected) {
+			t.Fatalf("config missing %q:\n%s", expected, value)
+		}
+	}
+	if strings.Contains(value, "pat:") {
+		t.Fatalf("adapter settings unexpectedly persisted a PAT:\n%s", value)
+	}
+}
+
 func TestSetDefaults_DoNotPersistEnvironmentPAT(t *testing.T) {
 	for _, test := range []struct {
 		name string

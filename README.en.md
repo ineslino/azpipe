@@ -73,7 +73,7 @@ The TUI asks for the organization and validates the session with the configured 
 go install github.com/ineslino/azpipe@latest
 ```
 
-Use `AZDO_PAT` injected by your credential mechanism and `AZDO_ORG` for context. Never put tokens in examples, profiles or parameters. Legacy `auth set` persists the PAT and is not recommended. The optional `azdo-as` adapter, permissions and PLAN contracts are covered in the [operational guide](docs/usage.md).
+Use `AZDO_PAT` injected by your credential mechanism and `AZDO_ORG` for context, or configure an external adapter once with `azpipe auth set`. Never put tokens in examples, profiles or parameters. Legacy `auth set --pat` persists the PAT and is not recommended. The optional adapter, permissions and PLAN contracts are covered in the [operational guide](docs/usage.md).
 
 ## Usage
 

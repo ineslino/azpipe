@@ -128,6 +128,9 @@ func (m reviewModel) listCapacity() int {
 	if height == 0 {
 		height = defaultHeight
 	}
+	if height >= 28 {
+		return max(1, height-21)
+	}
 	return max(1, height-17)
 }
 
@@ -162,6 +165,9 @@ func (m reviewModel) view() string {
 		headers = []string{"", "ESTADO", "MODO", "ID", "PROJECTO", "PIPELINE"}
 	}
 	lines := []string{catalogTitleStyle.Render(fmt.Sprintf("Revisão · %d pipelines · %d prontas · %d bloqueadas", len(m.reviews), ready, blocked)), catalogHeaderStyle.Width(width).Render(tableCells(columns, headers...))}
+	if height >= 28 {
+		lines = []string{"", lines[0], "", lines[1]}
+	}
 	start := m.offset / m.listCapacity() * m.listCapacity()
 	end := min(len(m.reviews), start+m.listCapacity())
 	for i := start; i < end; i++ {
@@ -189,6 +195,9 @@ func (m reviewModel) view() string {
 		lines = append(lines, style.Render(line))
 	}
 	lines = append(lines, catalogDetailStyle.Render(fmt.Sprintf("  %d–%d de %d · ↑/↓ escolher pipeline", min(start+1, len(m.reviews)), end, len(m.reviews))))
+	if height >= 28 {
+		lines = append(lines, "")
+	}
 	if len(m.reviews) > 0 {
 		r := m.reviews[m.offset]
 		request := r.Request
@@ -202,6 +211,9 @@ func (m reviewModel) view() string {
 		wrapped := strings.Split(ansi.Wrap(detail, width, ""), "\n")
 		scroll := min(m.horizontal, max(0, len(wrapped)-5))
 		lines = append(lines, catalogHeaderStyle.Render(truncateWidth("── Detalhe · "+pipelineDisplayName(r.Selection.Pipeline, includeProject), width)))
+		if height >= 28 {
+			lines = append(lines, "")
+		}
 		for _, line := range wrapped[scroll:min(len(wrapped), scroll+5)] {
 			lines = append(lines, catalogDetailStyle.Render(line))
 		}

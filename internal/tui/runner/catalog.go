@@ -359,6 +359,9 @@ func (m CatalogModel) View() string {
 		runStyle.Render(fmt.Sprintf("%d RUN", len(m.selected)-plans)) + "  " + planStyle.Render(fmt.Sprintf("%d PLAN", plans)) + "  " + catalogDetailStyle.Render(truncateWidth("Branch: "+branchLabel, max(1, m.width-20))),
 		m.search.View(),
 	}
+	if m.height >= 24 {
+		lines = []string{"", lines[0], lines[1], "", lines[2], ""}
+	}
 
 	start, end := m.displayRange()
 	inner := max(1, m.width-4)
@@ -449,6 +452,9 @@ func (m CatalogModel) displayRange() (int, int) {
 
 func (m CatalogModel) catalogCapacity() int {
 	available := m.height - 15 - lipgloss.Height(m.helpView())
+	if m.height >= 24 {
+		available -= 3
+	}
 	if m.warning != "" {
 		available--
 	}

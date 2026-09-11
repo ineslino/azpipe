@@ -410,75 +410,200 @@ func (m BranchModel) load() (BranchModel, tea.Cmd) {
 	}
 }
 
+func branchTableLayout(width int, stage string) (int, []int, []string) {
+	inner := max(1, width-4)
+	switch stage {
+	case "list":
+		if inner < 34 {
+			return inner, []int{4, max(1, inner-7)}, []string{"SEL", "BRANCH"}
+		}
+		creatorWidth := min(28, max(10, inner/3))
+		branchWidth := inner - 10 - creatorWidth
+		if branchWidth < 16 {
+			creatorWidth = max(8, inner-10-16)
+			branchWidth = inner - 10 - creatorWidth
+		}
+		return inner, []int{4, branchWidth, creatorWidth}, []string{"SEL", "BRANCH", "CRIADOR"}
+	case "review":
+		if inner < 34 {
+			return inner, []int{max(1, inner-3), 3}, []string{"BRANCH", "ESTADO"}
+		}
+		statusWidth := min(22, max(12, inner/3))
+		shaWidth := min(16, max(8, inner/5))
+		branchWidth := inner - 6 - statusWidth - shaWidth
+		if branchWidth < 14 {
+			shaWidth = max(6, inner-6-statusWidth-14)
+			branchWidth = inner - 6 - statusWidth - shaWidth
+		}
+		return inner, []int{branchWidth, shaWidth, statusWidth}, []string{"BRANCH", "SHA", "ESTADO"}
+	case "repos":
+		if inner < 27 {
+			return inner, []int{max(1, inner-3), 3}, []string{"REPOSITÓRIO", "DEFAULT"}
+		}
+		defaultWidth := min(24, max(14, inner/3))
+		return inner, []int{inner - 3 - defaultWidth, defaultWidth}, []string{"REPOSITÓRIO", "BRANCH DEFAULT"}
+	case "results":
+		if inner < 34 {
+			return inner, []int{max(1, inner-3), 3}, []string{"BRANCH", "ESTADO"}
+		}
+		statusWidth := min(32, max(16, inner/3))
+		return inner, []int{inner - 3 - statusWidth, statusWidth}, []string{"BRANCH", "ESTADO"}
+	default:
+		return inner, []int{inner}, []string{"RESULTADO"}
+	}
+}
+
+func renderBranchTable(inner int, widths []int, headers []string, rows [][]string, active int, selected map[int]bool) string {
+	lines := []string{catalogHeaderStyle.Width(inner).Render(tableCells(widths, headers...))}
+	if len(rows) == 0 {
+		return strings.Join(append(lines, catalogDetailStyle.Render("Sem resultados.")), "\n")
+	}
+	for index, values := range rows {
+		if index == active && len(values) > 0 {
+			values = append([]string(nil), values...)
+			values[0] = ">" + values[0]
+		}
+		row := tableCells(widths, values...)
+		if index == active {
+			row = catalogActiveStyle.Width(inner).Render(row)
+		} else if selected[index] {
+			row = catalogDetailStyle.Bold(true).Width(inner).Render(row)
+		} else if index%2 == 0 {
+			row = stripeStyle.Width(inner).Render(row)
+		}
+		lines = append(lines, row)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func branchCreator(branch azdo.Branch) string {
+	creator := branch.Creator.UniqueName
+	if creator == "" {
+		creator = branch.Creator.DisplayName
+	}
+	if creator == "" {
+		return "criador desconhecido"
+	}
+	return creator
+}
+
+func branchState(branch azdo.Branch) string {
+	if branch.Blocked != "" {
+		return "BLOQUEADA"
+	}
+	if branch.IsLocked {
+		return "BLOQUEADA"
+	}
+	return "disponível"
+}
+
+func branchResultCells(result string) []string {
+	parts := strings.SplitN(result, " · ", 3)
+	if len(parts) == 3 {
+		return []string{strings.TrimPrefix(parts[0], "refs/heads/"), parts[2]}
+	}
+	return []string{result}
+}
+
 func (m BranchModel) View() string {
-	width := max(10, m.width-4)
-	lines := []string{catalogTitleStyle.Render("BRANCHES · " + m.project + " / " + m.repo.Name), ""}
-	var rows []string
+	frameWidth := max(10, m.width)
+	inner, widths, headers := branchTableLayout(frameWidth, m.stage)
+	lines := []string{catalogTitleStyle.Render(truncateWidth("BRANCHES · "+m.project+" / "+m.repo.Name, frameWidth)), ""}
+	var tableRows [][]string
+	var total int
+	var detail string
+	tableTitle := "RESULTADOS"
 	help := "↑/↓ navegar · enter abrir · r actualizar · q sair"
 	switch m.stage {
 	case "repos":
 		lines = append(lines, "Escolhe um repositório", "")
-		for _, r := range m.repos {
-			rows = append(rows, r.Name)
+		tableTitle = "REPOSITÓRIOS"
+		total = len(m.repos)
+		for _, repo := range m.repos {
+			tableRows = append(tableRows, []string{repo.Name, repo.DefaultBranch})
+		}
+		if m.cursor < total {
+			repo := m.repos[m.cursor]
+			detail = fmt.Sprintf("Repositório: %s\nBranch default: %s", repo.Name, repo.DefaultBranch)
 		}
 	case "list":
-		lines = append(lines, m.filter.View(), m.creator.View(), "", catalogHeaderStyle.Render("SEL  BRANCH · CRIADOR"))
-		for _, b := range m.visible() {
+		lines = append(lines, m.filter.View(), m.creator.View(), "")
+		tableTitle = "BRANCHES"
+		visible := m.visible()
+		total = len(visible)
+		for _, b := range visible {
 			mark := "[ ]"
 			if m.selected[b.Name] {
 				mark = "[x]"
 			}
-			creator := b.Creator.UniqueName
-			if creator == "" {
-				creator = b.Creator.DisplayName
+			values := []string{mark, strings.TrimPrefix(b.Name, "refs/heads/"), branchCreator(b)}
+			if len(widths) == 2 {
+				values = values[:2]
 			}
-			if creator == "" {
-				creator = "criador desconhecido"
-			}
-			rows = append(rows, mark+" "+strings.TrimPrefix(b.Name, "refs/heads/")+" · "+creator)
+			tableRows = append(tableRows, values)
+		}
+		if m.cursor < total {
+			b := visible[m.cursor]
+			detail = fmt.Sprintf("Branch: %s\nSHA: %s\nCriador: %s\nEstado: %s", b.Name, b.ObjectID, branchCreator(b), branchState(b))
 		}
 		help = "espaço seleccionar · / nome · u criador · c limpar · enter rever · r actualizar · b repos · q sair"
 	case "review":
 		lines = append(lines, "REVER ELIMINAÇÃO · branches remotas", "Confirma o repositório, os nomes e os SHAs.", "Isto não confirma que os commits já foram integrados.", "")
+		tableTitle = "REVISÃO"
+		total = len(m.reviewed)
 		for _, b := range m.reviewed {
 			status := "sem bloqueios detectados"
 			if b.Blocked != "" {
 				status = "BLOQUEADA: " + b.Blocked
 			}
-			rows = append(rows, b.Name+" · "+b.ObjectID+" · "+status)
+			values := []string{strings.TrimPrefix(b.Name, "refs/heads/"), b.ObjectID, status}
+			if len(widths) == 2 {
+				values = []string{strings.TrimPrefix(b.Name, "refs/heads/"), status}
+			}
+			tableRows = append(tableRows, values)
+		}
+		if m.cursor < total {
+			b := m.reviewed[m.cursor]
+			detail = fmt.Sprintf("Branch: %s\nSHA: %s\nCriador: %s\nEstado: %s", b.Name, b.ObjectID, branchCreator(b), branchState(b))
 		}
 		help = "↑/↓ rever lista · esc voltar · enter confirmar"
 	case "results":
 		lines = append(lines, "RESULTADOS · sem repetição automática", "")
-		rows = m.results
+		tableTitle = "RESULTADOS"
+		total = len(m.results)
+		for _, result := range m.results {
+			tableRows = append(tableRows, branchResultCells(result))
+		}
+		if m.cursor < total {
+			detail = m.results[m.cursor]
+		}
 		help = "↑/↓ navegar · r actualizar branches · b repos · q sair"
 	}
-	capacity := max(1, m.height-len(lines)-14)
+	capacity := max(1, m.height-len(lines)-16)
 	start := max(0, m.cursor-capacity+1)
-	end := min(len(rows), start+capacity)
-	for i := start; i < end; i++ {
-		line := ansi.Truncate(rows[i], width-2, "…")
-		if i == m.cursor {
-			line = catalogActiveStyle.Render("> " + line)
-		} else {
-			line = "  " + line
-		}
-		lines = append(lines, line)
+	if start > total {
+		start = max(0, total-capacity)
 	}
-	if len(rows) == 0 && !m.busy {
-		lines = append(lines, "Sem resultados.")
-	}
-	lines = append(lines, "", fmt.Sprintf("%d/%d · %d seleccionadas (inclui ocultas pelo filtro)", min(m.cursor+1, len(rows)), len(rows), len(m.selected)))
-	if m.cursor < len(rows) {
-		detail := rows[m.cursor]
-		if m.stage == "review" {
-			b := m.reviewed[m.cursor]
-			detail = "Branch: " + b.Name + "\nSHA: " + b.ObjectID + "\nCriador: " + b.Creator.DisplayName + " " + b.Creator.UniqueName + "\nBloqueio: " + b.Blocked
+	end := min(total, start+capacity)
+	selectedRows := map[int]bool{}
+	if m.stage == "list" {
+		for index := start; index < end; index++ {
+			if m.selected[m.visible()[index].Name] {
+				selectedRows[index-start] = true
+			}
 		}
-		wrapped := strings.Split(ansi.Wrap(detail, width, ""), "\n")
+	}
+	table := renderBranchTable(inner, widths, headers, tableRows[start:end], m.cursor-start, selectedRows)
+	if total == 0 {
+		table = renderBranchTable(inner, widths, headers, nil, -1, nil)
+	}
+	lines = append(lines, strings.Split(section(fmt.Sprintf("%s %d–%d / %d", tableTitle, min(start+1, total), end, total), table, frameWidth), "\n")...)
+	lines = append(lines, "", fmt.Sprintf("%d/%d · %d seleccionadas (inclui ocultas pelo filtro)", min(m.cursor+1, total), total, len(m.selected)))
+	if detail != "" {
+		wrapped := strings.Split(ansi.Wrap(detail, max(1, frameWidth-8), ""), "\n")
 		offset := min(m.detailOffset, max(0, len(wrapped)-4))
-		lines = append(lines, "Detalhe · ←/→ deslocar")
-		lines = append(lines, wrapped[offset:min(len(wrapped), offset+4)]...)
+		wrapped = wrapped[offset:min(len(wrapped), offset+4)]
+		lines = append(lines, strings.Split(section("DETALHE · ←/→ deslocar", strings.Join(wrapped, "\n"), frameWidth), "\n")...)
 	}
 	if m.stage == "review" {
 		lines = append(lines, m.confirmation.View())
@@ -487,14 +612,14 @@ func (m BranchModel) View() string {
 		lines = append(lines, "A processar… Esc cancela o restante lote.")
 	}
 	if m.err != "" {
-		lines = append(lines, catalogWarningStyle.Render(ansi.Truncate(m.err, width, "…")))
+		lines = append(lines, catalogWarningStyle.Render(ansi.Truncate(m.err, inner, "…")))
 	}
 	if m.demo {
 		lines = append(lines, "DEMO OFFLINE · não elimina branches")
 	}
-	lines = append(lines, strings.Split(ansi.Wrap(help, width, ""), "\n")...)
+	lines = append(lines, strings.Split(ansi.Wrap(help, inner, ""), "\n")...)
 	for i, line := range lines {
-		lines[i] = ansi.Truncate(line, width, "…")
+		lines[i] = ansi.Truncate(line, frameWidth, "…")
 	}
 	return strings.Join(lines, "\n")
 }

@@ -180,6 +180,11 @@ func TestBranchFiltersRetainSelectionAndFramesFit(t *testing.T) {
 			}
 		}
 	}
+	m := NewBranchDemo()
+	view := m.View()
+	if !strings.Contains(view, "│ BRANCH") || !strings.Contains(view, ">[ ]") {
+		t.Fatalf("branch list is not rendered as the catalog table:\n%s", view)
+	}
 }
 
 func TestBranchListingFailureClearsPreviousRepository(t *testing.T) {

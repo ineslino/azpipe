@@ -57,9 +57,17 @@ but persisted PATs are legacy. It writes `~/.config/azpipe/config.yaml`; use
 
 ## Interactive pipeline runner
 
-Running `azpipe` with no subcommand opens the pipeline runner. It collects the
-organization and project, using configured values as defaults, then lets you select
-multiple pipelines before any Azure DevOps run is created.
+Running `azpipe` with no subcommand opens the pipeline runner. It validates the
+organization with the configured credentials, lists the projects accessible to that
+session, and lets you choose one project or **All projects**. It then lets you select
+multiple pipelines before any Azure DevOps run is created. Configured organization and
+project values are used as defaults when they match the returned context.
+
+In **All projects** mode, azpipe lists pipeline definitions once per accessible project
+and retains the owning project on every pipeline. The catalog can therefore filter by
+project as well as by name, ID, folder, type, repository, or tag. Loading the complete
+organization may take longer than loading one project, and a failure while listing
+pipelines for any project keeps the catalog closed instead of showing an incomplete result.
 
 `azpipe demo` opens the same catalog with local fixture data. It does not request
 credentials, create an Azure DevOps client, make network calls, or expose an action
@@ -80,7 +88,7 @@ rows. Shorter terminals keep the compact identity and description to preserve ro
 | Key | Action |
 |-----|--------|
 | `j`/`k` or arrows | Move through the catalog |
-| `/` | Filter by name, ID, folder, type, repository, or tag |
+| `/` | Filter by project, name, ID, folder, type, repository, or tag |
 | `Space` | Select or remove the active pipeline |
 | `m` (`p` alias) | Toggle `RUN`/`PLAN` on an already selected pipeline with an explicit PLAN contract |
 | `P` / `R` | Apply PLAN / RUN to the whole selection; PLAN requires contracts for all selected pipelines |
@@ -88,6 +96,7 @@ rows. Shorter terminals keep the compact identity and description to preserve ro
 | `J` | Advanced JSON parameter editor |
 | `s` / `l` | Save the current selection as a profile / load a saved profile |
 | `h` | Browse previous batches in this context and resume monitoring without submitting runs |
+| `c` | Return to the project selector and change project scope |
 | `Enter` in a field | Finish editing and retain the filter or branch |
 | `PgUp` / `PgDn` | Page through review and execution rows; arrows select a review item and left/right scroll its vertical detail |
 | `b` | Edit the global branch, initially `main` |
@@ -148,7 +157,7 @@ and [Git Items API](https://learn.microsoft.com/en-us/rest/api/azure/devops/git/
 
 ### Profiles and batch history
 
-Press `s` to save pipeline IDs, modes, branches and non-secret parameter overrides.
+Press `s` to save pipeline IDs, their project, modes, branches and non-secret parameter overrides.
 The save screen explains what is persisted and Enter confirms the write. Existing
 profile names are never overwritten. Press `l` to load a profile for the current
 organization/project. Loading replaces the selection, but does not reuse a preview
@@ -159,7 +168,8 @@ Profiles and batch journals use separate `profiles/` and `runs/` directories und
 `os.UserConfigDir()/azpipe` (on macOS, `~/Library/Application Support/azpipe`).
 Set `AZPIPE_DATA_DIR` to an absolute directory to relocate both. Files are created
 with mode 0600. Profiles contain parameter values in plaintext: never store secrets.
-Profile branches are retained per pipeline; editing `b` applies one global branch.
+Profile branches are retained per pipeline, and all-project profiles also retain the
+owning project for each selection. Editing `b` applies one global branch.
 
 Press `h` to browse saved batches and resume one. The dashboard counts queued,
 running, successful, failed and unknown-ID runs; accepted runs retain their URLs.

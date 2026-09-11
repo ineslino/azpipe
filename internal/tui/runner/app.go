@@ -24,23 +24,24 @@ const (
 
 // AppModel integrates context, catalog, review, and execution into one Bubble Tea model.
 type AppModel struct {
-	screen       Screen
-	factory      ClientFactory
-	service      domainrunner.Service
-	context      contextModel
-	catalog      CatalogModel
-	review       reviewModel
-	execution    executionModel
-	demo         bool
-	generation   uint64
-	active       operationToken
-	height       int
-	width        int
-	organization string
-	project      string
-	library      *libraryModel
-	demoProfiles []domainrunner.Profile
-	actions      *int
+	screen        Screen
+	factory       ClientFactory
+	service       domainrunner.Service
+	context       contextModel
+	contextClient azdo.Client
+	catalog       CatalogModel
+	review        reviewModel
+	execution     executionModel
+	demo          bool
+	generation    uint64
+	active        operationToken
+	height        int
+	width         int
+	organization  string
+	project       string
+	library       *libraryModel
+	demoProfiles  []domainrunner.Profile
+	actions       *int
 }
 
 type operationToken struct {
@@ -50,6 +51,7 @@ type operationToken struct {
 
 type selectionTarget struct {
 	PipelineID int               `json:"pipelineId"`
+	Project    string            `json:"project,omitempty"`
 	Mode       domainrunner.Mode `json:"mode"`
 	Branch     string            `json:"branch"`
 	Parameters []parameterTarget `json:"parameters"`
@@ -134,7 +136,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		pipeline, ok := m.catalog.active()
-		if !ok || pipeline.ID != typed.id || m.catalog.branchFor(pipeline.ID) != typed.branch {
+		if !ok || pipeline.ID != typed.id || pipeline.Project != typed.project || m.catalog.branchFor(pipeline) != typed.branch {
 			return m, nil
 		}
 		m.catalog.notice = ""
@@ -146,7 +148,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if pipeline.PlanContract != nil {
 			modeParameter = pipeline.PlanContract.Parameter
 		}
-		editor, err := newSchemaEditor(typed.schema, m.catalog.parameters[pipeline.ID], modeParameter)
+		editor, err := newSchemaEditor(typed.schema, m.catalog.parameters[domainrunner.PipelineKey(pipeline)], modeParameter)
 		if err != nil {
 			m.catalog.warning = err.Error()
 			return m, nil
@@ -156,17 +158,55 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.catalog.warning = ""
 		return m, nil
 	case contextSubmitMsg:
-		currentContextTarget := contextOperationTarget(strings.TrimSpace(m.context.organization.Value()), strings.TrimSpace(m.context.project.Value()))
-		if m.screen != ScreenContext || contextOperationTarget(typed.organization, typed.project) != currentContextTarget {
+		if m.screen != ScreenContext || strings.TrimSpace(typed.organization) != strings.TrimSpace(m.context.organization.Value()) {
+			return m, nil
+		}
+		if typed.project == "" {
+			token := m.startOperation(organizationOperationTarget(typed.organization))
+			return m, loadProjects(m.factory, typed.organization, token)
+		}
+		currentProject := m.context.selectedProject()
+		if len(m.context.projects) == 0 {
+			// Compatibility path for callers that already provide a project.
+			currentProject = strings.TrimSpace(m.context.project.Value())
+		}
+		if contextOperationTarget(typed.organization, typed.project) != contextOperationTarget(strings.TrimSpace(m.context.organization.Value()), currentProject) {
 			return m, nil
 		}
 		token := m.startOperation(contextOperationTarget(typed.organization, typed.project))
-		return m, loadContext(m.factory, typed.organization, typed.project, token)
-	case contextLoadedMsg:
-		currentContextTarget := contextOperationTarget(strings.TrimSpace(m.context.organization.Value()), strings.TrimSpace(m.context.project.Value()))
-		if !m.accepts(ScreenContext, typed.token) || typed.token.target != contextOperationTarget(typed.organization, typed.project) || typed.token.target != currentContextTarget {
+		m.context.loading = true
+		if len(m.context.projects) == 0 {
+			return m, loadContext(m.factory, typed.organization, typed.project, token)
+		}
+		return m, loadSelectedProject(m.contextClient, typed.organization, typed.project, m.context.projects, token)
+	case projectsLoadedMsg:
+		if !m.accepts(ScreenContext, typed.token) || typed.token.target != organizationOperationTarget(typed.organization) || strings.TrimSpace(typed.organization) != strings.TrimSpace(m.context.organization.Value()) {
 			return m, nil
 		}
+		m.context.loading = false
+		if typed.err != nil {
+			m.context.err = typed.err.Error()
+			return m, nil
+		}
+		m.contextClient = typed.client
+		m.context.err = ""
+		m.context.setProjects(typed.projects)
+		if len(typed.projects) == 0 {
+			m.context.err = "A organização não devolveu projectos acessíveis."
+			m.context.setFocus(contextOrganizationFocus)
+			return m, nil
+		}
+		m.context.setFocus(contextProjectFocus)
+		return m, nil
+	case contextLoadedMsg:
+		currentProject := m.context.selectedProject()
+		if len(m.context.projects) == 0 {
+			currentProject = strings.TrimSpace(m.context.project.Value())
+		}
+		if !m.accepts(ScreenContext, typed.token) || typed.token.target != contextOperationTarget(typed.organization, typed.project) || typed.token.target != contextOperationTarget(strings.TrimSpace(m.context.organization.Value()), currentProject) {
+			return m, nil
+		}
+		m.context.loading = false
 		if typed.err != nil {
 			m.context.err = typed.err.Error()
 			return m, nil
@@ -297,13 +337,24 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.openLibrary(kind)
 				return m, nil
 			}
+			if key.String() == "c" {
+				if m.demo || len(m.context.projects) == 0 {
+					m.catalog.notice = "Não existe uma organização com projectos carregados para trocar."
+					return m, nil
+				}
+				m.invalidateOperation()
+				m.context.err = ""
+				m.context.setFocus(contextProjectFocus)
+				m.screen = ScreenContext
+				return m, nil
+			}
 		}
 		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "e" && m.catalog.input == inputNone {
 			if pipeline, ok := m.catalog.active(); ok {
 				token := m.startOperation("schema")
 				m.catalog.warning = ""
 				m.catalog.notice = "A ler parâmetros do YAML..."
-				return m, m.loadSchema(pipeline.ID, m.catalog.branchFor(pipeline.ID), token)
+				return m, m.loadSchema(pipeline, m.catalog.branchFor(pipeline), token)
 			}
 		}
 		updated, cmd := m.catalog.Update(msg)
@@ -318,7 +369,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.catalog.search.SetValue("")
 				m.catalog.filter()
 				for i, p := range m.catalog.visible {
-					if p.ID == r.Selection.ID() {
+					if domainrunner.PipelineKey(p) == r.Selection.Key() {
 						m.catalog.cursor = i
 						break
 					}
@@ -414,7 +465,11 @@ func (m AppModel) contextHeader() string {
 	if m.demo {
 		return header + catalogDetailStyle.Render("Contexto fictício: example-org / sample-project") + "\n"
 	}
-	return header + catalogDetailStyle.Render(truncateWidth(fmt.Sprintf("Organização: %s | Projecto: %s", m.organization, m.project), m.width)) + "\n"
+	project := m.project
+	if project == domainrunner.AllProjects {
+		project = allProjectsLabel
+	}
+	return header + catalogDetailStyle.Render(truncateWidth(fmt.Sprintf("Organização: %s | Projecto: %s", m.organization, project), m.width)) + "\n"
 }
 
 func demoPipelines() []azdo.Pipeline {
@@ -445,6 +500,11 @@ func contextOperationTarget(organization, project string) string {
 	return string(encoded)
 }
 
+func organizationOperationTarget(organization string) string {
+	encoded, _ := json.Marshal([]string{"organization", organization})
+	return string(encoded)
+}
+
 func selectionsOperationTarget(selections []domainrunner.Selection) string {
 	targets := make([]selectionTarget, len(selections))
 	for index, selection := range selections {
@@ -460,6 +520,7 @@ func selectionsOperationTarget(selections []domainrunner.Selection) string {
 		}
 		targets[index] = selectionTarget{
 			PipelineID: selection.Pipeline.ID,
+			Project:    selection.Pipeline.Project,
 			Mode:       selection.Mode,
 			Branch:     request.Branch,
 			Parameters: parameters,

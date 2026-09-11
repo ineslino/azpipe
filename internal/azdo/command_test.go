@@ -57,3 +57,35 @@ func TestCommandAdapterUsesPrivateBodyAndContinuationToken(t *testing.T) {
 		t.Fatal("helper error exposed")
 	}
 }
+
+func TestCommandClientListProjectsPaginates(t *testing.T) {
+	c := CommandClient{Executable: "helper", Profile: "test", ExpectedIdentity: "operator@example.com", Organization: "https://dev.azure.com/example"}
+	requestCalls := 0
+	c.output = func(_ context.Context, args ...string) ([]byte, error) {
+		if len(args) > 1 && args[1] == "whoami" {
+			return []byte(`{"authenticatedUser":{"properties":{"Account":{"$value":"operator@example.com"}}}}`), nil
+		}
+		requestCalls++
+		if requestCalls == 1 {
+			return []byte(`{"value":[{"id":"alpha","name":"Alpha"}],"continuation_token":"next"}`), nil
+		}
+		foundToken := false
+		for _, arg := range args {
+			if arg == "continuationToken=next" {
+				foundToken = true
+			}
+		}
+		if !foundToken {
+			t.Fatal("second project request did not carry continuation token")
+		}
+		return []byte(`{"value":[{"id":"beta","name":"Beta"}]}`), nil
+	}
+
+	projects, err := c.ListProjects(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if requestCalls != 2 || len(projects) != 2 || projects[1].Name != "Beta" {
+		t.Fatalf("project pagination = calls:%d projects:%#v", requestCalls, projects)
+	}
+}

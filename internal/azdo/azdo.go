@@ -143,9 +143,10 @@ func listPipelineDefinitions(ctx context.Context, bc pipelineBuildClient, projec
 	result := make([]Pipeline, len(definitions))
 	for index, d := range definitions {
 		result[index] = Pipeline{
-			ID:     derefInt(d.Id),
-			Name:   derefStr(d.Name),
-			Folder: derefStr(d.Path),
+			ID:      derefInt(d.Id),
+			Project: project,
+			Name:    derefStr(d.Name),
+			Folder:  derefStr(d.Path),
 		}
 		// Repository is only available through the latest build reference.
 		if d.LatestBuild != nil && d.LatestBuild.Repository != nil {

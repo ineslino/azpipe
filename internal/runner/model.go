@@ -1,8 +1,17 @@
 package runner
 
-import "github.com/ineslino/azpipe/internal/azdo"
+import (
+	"strconv"
+	"strings"
+
+	"github.com/ineslino/azpipe/internal/azdo"
+)
 
 const defaultBranch = "main"
+
+// AllProjects is the TUI context value used when the catalog spans the organization.
+// It is never sent to an Azure DevOps API as a project name.
+const AllProjects = "*"
 
 // Mode defines whether a selected pipeline is queued normally or as a plan.
 type Mode string
@@ -23,6 +32,21 @@ type Selection struct {
 // ID is the stable selection identity.
 func (s Selection) ID() int {
 	return s.Pipeline.ID
+}
+
+// Project returns the project that owns the selected pipeline, if known.
+func (s Selection) Project() string {
+	return s.Pipeline.Project
+}
+
+// Key is stable across an organization, where pipeline IDs are only unique per project.
+func (s Selection) Key() string {
+	return PipelineKey(s.Pipeline)
+}
+
+// PipelineKey keeps project and pipeline ID together for catalog maps and stale-result checks.
+func PipelineKey(pipeline azdo.Pipeline) string {
+	return strings.ToLower(strings.TrimSpace(pipeline.Project)) + "\x00" + strconv.Itoa(pipeline.ID)
 }
 
 // Parameters returns only parameters required by the selected mode.

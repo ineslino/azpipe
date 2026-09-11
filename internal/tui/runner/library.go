@@ -80,7 +80,7 @@ func (m AppModel) libraryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			profile.Organization = "demo"
 		}
 		for _, s := range m.catalog.Selected() {
-			profile.Selections = append(profile.Selections, domain.ProfileSelection{ID: s.ID(), Mode: s.Mode, Branch: s.Branch, Parameters: s.Inputs})
+			profile.Selections = append(profile.Selections, domain.ProfileSelection{ID: s.ID(), Project: s.Project(), Mode: s.Mode, Branch: s.Branch, Parameters: s.Inputs})
 		}
 		var err error
 		if m.demo {
@@ -131,13 +131,14 @@ func (m AppModel) libraryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 				l.err = err.Error()
 				return m, nil
 			}
-			m.catalog.selected = map[int]domain.Mode{}
-			m.catalog.parameters = map[int]map[string]string{}
-			m.catalog.branches = map[int]string{}
+			m.catalog.selected = map[string]domain.Mode{}
+			m.catalog.parameters = map[string]map[string]string{}
+			m.catalog.branches = map[string]string{}
 			for _, s := range selections {
-				m.catalog.selected[s.ID()] = s.Mode
-				m.catalog.parameters[s.ID()] = s.Inputs
-				m.catalog.branches[s.ID()] = s.Branch
+				key := s.Key()
+				m.catalog.selected[key] = s.Mode
+				m.catalog.parameters[key] = s.Inputs
+				m.catalog.branches[key] = s.Branch
 			}
 			m.catalog.warning = ""
 			m.catalog.notice = "Perfil carregado; confirme selecção, branches e parâmetros antes de rever."

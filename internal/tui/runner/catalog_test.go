@@ -42,6 +42,21 @@ func TestCatalogSelection_SpaceTogglesOnlyActivePipeline(t *testing.T) {
 	}
 }
 
+func TestCatalogSelection_UsesProjectAndPipelineIDTogether(t *testing.T) {
+	model := NewCatalogModel([]azdo.Pipeline{
+		{ID: 7, Project: "Alpha", Name: "deploy"},
+		{ID: 7, Project: "Beta", Name: "deploy"},
+	})
+	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeySpace})
+	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeyDown})
+	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeySpace})
+
+	selected := model.Selected()
+	if len(selected) != 2 || selected[0].Project() != "Alpha" || selected[1].Project() != "Beta" {
+		t.Fatalf("selected pipelines = %#v, want both project-owned pipelines", selected)
+	}
+}
+
 func TestCatalogPlan_TogglesActivePipelineBetweenPlanAndRun(t *testing.T) {
 	model := catalogFixture()
 	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeySpace})

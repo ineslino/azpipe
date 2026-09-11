@@ -117,7 +117,7 @@ func (c *CommandClient) ListPipelines(ctx context.Context, project string) ([]Pi
 			return nil, err
 		}
 		for _, d := range page.Value {
-			p := Pipeline{ID: derefInt(d.Id), Name: derefStr(d.Name), Folder: derefStr(d.Path)}
+			p := Pipeline{ID: derefInt(d.Id), Project: project, Name: derefStr(d.Name), Folder: derefStr(d.Path)}
 			if d.Repository != nil {
 				p.RepoName = derefStr(d.Repository.Name)
 			}
@@ -144,11 +144,31 @@ func (c *CommandClient) ListPipelines(ctx context.Context, project string) ([]Pi
 }
 
 func (c *CommandClient) ListProjects(ctx context.Context) ([]Project, error) {
-	var out struct {
-		Value []Project `json:"value"`
+	var result []Project
+	token := ""
+	seen := map[string]bool{}
+	for {
+		var out struct {
+			Value []Project `json:"value"`
+		}
+		var query []string
+		if token != "" {
+			query = []string{"continuationToken=" + token}
+		}
+		next, err := c.invoke(ctx, "core", "projects", "", "GET", nil, query, nil, &out)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, out.Value...)
+		if next == "" {
+			return result, nil
+		}
+		if seen[next] {
+			return nil, fmt.Errorf("repeated project continuation token")
+		}
+		seen[next] = true
+		token = next
 	}
-	_, err := c.invoke(ctx, "core", "projects", "", "GET", nil, nil, nil, &out)
-	return out.Value, err
 }
 func (c *CommandClient) ListRepositories(ctx context.Context, project string) ([]Repository, error) {
 	var out struct {

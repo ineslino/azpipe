@@ -7,21 +7,26 @@ import (
 
 // MockClient is a test double for Client. Set the exported fields before use.
 type MockClient struct {
-	Projects  []Project
-	Repos     []Repository
-	Pipelines []Pipeline
-	Runs      []PipelineRun
-	ActiveRun *PipelineRun
-	Timeline  []StageResult
-	Err       error
+	Projects           []Project
+	Repos              []Repository
+	Pipelines          []Pipeline
+	PipelinesByProject map[string][]Pipeline
+	Runs               []PipelineRun
+	ActiveRun          *PipelineRun
+	Timeline           []StageResult
+	Err                error
 
-	PreviewRequests []RunRequest
-	QueueRequests   []RunRequest
-	QueuedRuns      []PipelineRun
-	RunByID         map[int]PipelineRun
-	PreviewErr      error
-	QueueErr        error
-	GetRunErr       error
+	PreviewRequests      []RunRequest
+	QueueRequests        []RunRequest
+	ListPipelineProjects []string
+	PreviewProjects      []string
+	QueueProjects        []string
+	RunProjects          []string
+	QueuedRuns           []PipelineRun
+	RunByID              map[int]PipelineRun
+	PreviewErr           error
+	QueueErr             error
+	GetRunErr            error
 
 	mu        sync.Mutex
 	queueNext int
@@ -35,8 +40,22 @@ func (m *MockClient) ListRepositories(_ context.Context, _ string) ([]Repository
 	return m.Repos, m.Err
 }
 
-func (m *MockClient) ListPipelines(_ context.Context, _ string) ([]Pipeline, error) {
-	return m.Pipelines, m.Err
+func (m *MockClient) ListPipelines(_ context.Context, project string) ([]Pipeline, error) {
+	m.mu.Lock()
+	m.ListPipelineProjects = append(m.ListPipelineProjects, project)
+	m.mu.Unlock()
+	pipelines := m.Pipelines
+	if projectPipelines, ok := m.PipelinesByProject[project]; ok {
+		pipelines = projectPipelines
+	}
+	result := make([]Pipeline, len(pipelines))
+	for i, pipeline := range pipelines {
+		result[i] = pipeline
+		if result[i].Project == "" {
+			result[i].Project = project
+		}
+	}
+	return result, m.Err
 }
 
 func (m *MockClient) GetPipelineRuns(_ context.Context, _ string, _ int, limit int) ([]PipelineRun, error) {
@@ -58,20 +77,30 @@ func (m *MockClient) GetRepoPipelines(_ context.Context, _ string, _ string) ([]
 	return m.Pipelines, m.Err
 }
 
-func (m *MockClient) PreviewPipeline(_ context.Context, _ string, request RunRequest) error {
+func (m *MockClient) PreviewPipeline(_ context.Context, project string, request RunRequest) error {
+	return m.previewPipeline(request, project)
+}
+
+func (m *MockClient) previewPipeline(request RunRequest, project string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.PreviewRequests = append(m.PreviewRequests, cloneRunRequest(request))
+	m.PreviewProjects = append(m.PreviewProjects, project)
 	if m.PreviewErr != nil {
 		return m.PreviewErr
 	}
 	return m.Err
 }
 
-func (m *MockClient) QueuePipeline(_ context.Context, _ string, request RunRequest) (PipelineRun, error) {
+func (m *MockClient) QueuePipeline(_ context.Context, project string, request RunRequest) (PipelineRun, error) {
+	return m.queuePipeline(request, project)
+}
+
+func (m *MockClient) queuePipeline(request RunRequest, project string) (PipelineRun, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.QueueRequests = append(m.QueueRequests, cloneRunRequest(request))
+	m.QueueProjects = append(m.QueueProjects, project)
 	if m.QueueErr != nil {
 		return PipelineRun{}, m.QueueErr
 	}
@@ -86,9 +115,14 @@ func (m *MockClient) QueuePipeline(_ context.Context, _ string, request RunReque
 	return run, nil
 }
 
-func (m *MockClient) GetPipelineRun(_ context.Context, _ string, runID int) (PipelineRun, error) {
+func (m *MockClient) GetPipelineRun(_ context.Context, project string, runID int) (PipelineRun, error) {
+	return m.getPipelineRun(runID, project)
+}
+
+func (m *MockClient) getPipelineRun(runID int, project string) (PipelineRun, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.RunProjects = append(m.RunProjects, project)
 	if m.GetRunErr != nil {
 		return PipelineRun{}, m.GetRunErr
 	}

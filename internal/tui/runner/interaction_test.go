@@ -25,13 +25,13 @@ func TestParameterFormSaveAndDiscard(t *testing.T) {
 	m.editor.rows[0].name.SetValue("environment")
 	m.editor.rows[0].value.SetValue("dev")
 	m = updateCatalog(t, m, tea.KeyMsg{Type: tea.KeyCtrlS})
-	if m.parameters[101]["environment"] != "dev" || m.input != inputNone {
+	if m.parameters[domain.PipelineKey(azdo.Pipeline{ID: 101})]["environment"] != "dev" || m.input != inputNone {
 		t.Fatal("form not saved")
 	}
 	m = updateCatalog(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
 	m.editor.rows[0].value.SetValue("prod")
 	m = updateCatalog(t, m, tea.KeyMsg{Type: tea.KeyEsc})
-	if m.parameters[101]["environment"] != "dev" {
+	if m.parameters[domain.PipelineKey(azdo.Pipeline{ID: 101})]["environment"] != "dev" {
 		t.Fatal("discard changed saved parameters")
 	}
 }

@@ -221,7 +221,7 @@ func TestAppWorkflow_EscapeReturnsToCatalogAndPreservesSelection(t *testing.T) {
 }
 
 func TestBootstrapApp_AcceptsContextWithoutFlagsAndListsPipelines(t *testing.T) {
-	mock := &azdo.MockClient{Pipelines: appFixtures()}
+	mock := &azdo.MockClient{Projects: []azdo.Project{{ID: "project-id", Name: "sample-project"}}, Pipelines: appFixtures()}
 	var gotOrganization string
 	model := NewBootstrapApp(func(organization string) (azdo.Client, error) {
 		gotOrganization = organization
@@ -229,9 +229,10 @@ func TestBootstrapApp_AcceptsContextWithoutFlagsAndListsPipelines(t *testing.T) 
 	}, ContextDefaults{})
 
 	model = typeApp(t, model, "example-org")
-	model, _ = pressApp(t, model, "enter")
-	model = typeApp(t, model, "sample-project")
 	model, cmd := pressApp(t, model, "enter")
+	model, cmd = runAppCmd(t, model, cmd)
+	model, _ = runAppCmd(t, model, cmd)
+	model, cmd = pressApp(t, model, "enter")
 	model, cmd = runAppCmd(t, model, cmd)
 	model, _ = runAppCmd(t, model, cmd)
 
@@ -251,13 +252,11 @@ func TestBootstrapApp_ContextErrorsStayActionableAndFailClosed(t *testing.T) {
 	}, ContextDefaults{})
 
 	model, _ = pressApp(t, model, "enter")
-	if factoryCalls != 0 || !strings.Contains(model.View(), "Organização e projecto são obrigatórios") {
+	if factoryCalls != 0 || !strings.Contains(model.View(), "A organização é obrigatória") {
 		t.Fatalf("missing context state unexpected: calls=%d view=%q", factoryCalls, model.View())
 	}
 
 	model = typeApp(t, model, "example-org")
-	model, _ = pressApp(t, model, "enter")
-	model = typeApp(t, model, "sample-project")
 	model, cmd := pressApp(t, model, "enter")
 	model, cmd = runAppCmd(t, model, cmd)
 	model, _ = runAppCmd(t, model, cmd)
@@ -279,8 +278,86 @@ func TestBootstrapApp_ListErrorStaysOnContext(t *testing.T) {
 	model, cmd = runAppCmd(t, model, cmd)
 	model, _ = runAppCmd(t, model, cmd)
 
-	if model.Screen() != ScreenContext || !strings.Contains(model.View(), "não foi possível listar pipelines: project not found") {
+	if model.Screen() != ScreenContext || !strings.Contains(model.View(), "não foi possível listar projectos: project not found") {
 		t.Fatalf("list error must remain actionable on context:\n%s", model.View())
+	}
+}
+
+func TestBootstrapApp_AllProjectsLoadsAndFiltersPipelinesWithTheirOwner(t *testing.T) {
+	mock := &azdo.MockClient{
+		Projects: []azdo.Project{
+			{ID: "z-id", Name: "Zeta"},
+			{ID: "a-id", Name: "Alpha"},
+		},
+		PipelinesByProject: map[string][]azdo.Pipeline{
+			"Alpha": {{ID: 7, Name: "alpha deploy"}},
+			"Zeta":  {{ID: 7, Name: "zeta deploy"}},
+		},
+	}
+	model := NewBootstrapApp(func(string) (azdo.Client, error) { return mock, nil }, ContextDefaults{})
+	model = typeApp(t, model, "example-org")
+	model, cmd := pressApp(t, model, "enter")
+	model, cmd = runAppCmd(t, model, cmd)
+	model, _ = runAppCmd(t, model, cmd)
+
+	if model.context.selectedProject() != domainrunner.AllProjects {
+		t.Fatalf("default project = %q, want all projects", model.context.selectedProject())
+	}
+	if got := model.context.projects[0].Name; got != "Alpha" {
+		t.Fatalf("projects are not sorted: first=%q", got)
+	}
+
+	model, cmd = pressApp(t, model, "enter")
+	model, cmd = runAppCmd(t, model, cmd)
+	model, _ = runAppCmd(t, model, cmd)
+	if model.Screen() != ScreenCatalog || model.project != domainrunner.AllProjects {
+		t.Fatalf("screen/context after all-project load = %v/%q", model.Screen(), model.project)
+	}
+	if len(model.catalog.pipelines) != 2 || !model.catalog.hasProjectColumn() {
+		t.Fatalf("catalog = %#v, want two project-owned pipelines", model.catalog.pipelines)
+	}
+	if model.catalog.pipelines[0].Project != "Alpha" || model.catalog.pipelines[1].Project != "Zeta" {
+		t.Fatalf("pipeline owners = %#v", model.catalog.pipelines)
+	}
+
+	model.catalog.search.SetValue("zeta")
+	model.catalog.filter()
+	if len(model.catalog.visible) != 1 || model.catalog.visible[0].Project != "Zeta" {
+		t.Fatalf("project filter = %#v, want only Zeta", model.catalog.visible)
+	}
+}
+
+func TestBootstrapApp_CanChangeProjectScopeAfterLoadingCatalog(t *testing.T) {
+	mock := &azdo.MockClient{
+		Projects: []azdo.Project{
+			{ID: "a-id", Name: "Alpha"},
+			{ID: "b-id", Name: "Beta"},
+		},
+		PipelinesByProject: map[string][]azdo.Pipeline{
+			"Alpha": {{ID: 1, Name: "alpha deploy"}},
+			"Beta":  {{ID: 2, Name: "beta deploy"}},
+		},
+	}
+	model := NewBootstrapApp(func(string) (azdo.Client, error) { return mock, nil }, ContextDefaults{})
+	model = typeApp(t, model, "example-org")
+	model, cmd := pressApp(t, model, "enter")
+	model, cmd = runAppCmd(t, model, cmd)
+	model, _ = runAppCmd(t, model, cmd)
+	model, cmd = pressApp(t, model, "enter")
+	model, cmd = runAppCmd(t, model, cmd)
+	model, _ = runAppCmd(t, model, cmd)
+
+	model, _ = pressApp(t, model, "c")
+	if model.Screen() != ScreenContext || model.context.selectedProject() != domainrunner.AllProjects {
+		t.Fatalf("scope selector after c = screen:%v project:%q", model.Screen(), model.context.selectedProject())
+	}
+	model, _ = pressApp(t, model, "down")
+	model, cmd = pressApp(t, model, "enter")
+	model, cmd = runAppCmd(t, model, cmd)
+	model, _ = runAppCmd(t, model, cmd)
+
+	if model.Screen() != ScreenCatalog || model.project != "Alpha" || len(model.catalog.pipelines) != 1 || model.catalog.pipelines[0].Project != "Alpha" {
+		t.Fatalf("catalog after scope change = screen:%v project:%q pipelines:%#v", model.Screen(), model.project, model.catalog.pipelines)
 	}
 }
 
@@ -313,6 +390,22 @@ func TestExecution_RefreshesNonTerminalRunsAndShowsPartialFailure(t *testing.T) 
 	}
 	if !strings.Contains(model.View(), "COMPLETED billing deploy succeeded") {
 		t.Fatalf("refreshed terminal run not rendered:\n%s", model.View())
+	}
+}
+
+func TestReviewView_DistinguishesSamePipelineIDAcrossProjects(t *testing.T) {
+	reviews := []domainrunner.Review{
+		{Selection: domainrunner.Selection{Pipeline: azdo.Pipeline{ID: 7, Project: "Alpha", Name: "deploy"}}, State: domainrunner.ReviewReady},
+		{Selection: domainrunner.Selection{Pipeline: azdo.Pipeline{ID: 7, Project: "Beta", Name: "deploy"}}, State: domainrunner.ReviewReady},
+	}
+	model := newReviewModel([]domainrunner.Selection{reviews[0].Selection, reviews[1].Selection}, false, operationToken{generation: 1, target: "review"})
+	model.reviews = reviews
+	model.width = 80
+	model.height = 24
+
+	view := model.view()
+	if !strings.Contains(view, "PROJECTO") || !strings.Contains(view, "Alpha") || !strings.Contains(view, "Beta") {
+		t.Fatalf("review does not identify project-owned pipelines:\n%s", view)
 	}
 }
 

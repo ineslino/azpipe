@@ -198,6 +198,54 @@ func TestServiceRefresh_UpdatesOnlyNonTerminalRuns(t *testing.T) {
 	}
 }
 
+func TestServiceUsesPipelineProjectForOrganizationCatalog(t *testing.T) {
+	client := &azdo.MockClient{
+		QueuedRuns: []azdo.PipelineRun{{ID: 101}, {ID: 202}},
+		RunByID: map[int]azdo.PipelineRun{
+			101: {ID: 101, State: "completed", Result: "succeeded"},
+			202: {ID: 202, State: "completed", Result: "failed"},
+		},
+	}
+	service := runner.NewService(client, runner.AllProjects)
+	selections := []runner.Selection{
+		{Pipeline: azdo.Pipeline{ID: 7, Project: "alpha"}, Mode: runner.ModeRun},
+		{Pipeline: azdo.Pipeline{ID: 7, Project: "beta"}, Mode: runner.ModeRun},
+	}
+
+	reviews := service.PreviewAll(context.Background(), selections, 2)
+	if len(reviews) != 2 {
+		t.Fatalf("got %d reviews, want 2", len(reviews))
+	}
+	gotPreviewProjects := append([]string(nil), client.PreviewProjects...)
+	slices.Sort(gotPreviewProjects)
+	if !slices.Equal(gotPreviewProjects, []string{"alpha", "beta"}) {
+		t.Fatalf("preview projects = %v, want [alpha beta]", gotPreviewProjects)
+	}
+
+	runs, err := service.QueueAll(context.Background(), reviews, 2)
+	if err != nil {
+		t.Fatalf("QueueAll: %v", err)
+	}
+	if len(runs) != 2 {
+		t.Fatalf("got %d runs, want 2", len(runs))
+	}
+	gotQueueProjects := append([]string(nil), client.QueueProjects...)
+	slices.Sort(gotQueueProjects)
+	if !slices.Equal(gotQueueProjects, []string{"alpha", "beta"}) {
+		t.Fatalf("queue projects = %v, want [alpha beta]", gotQueueProjects)
+	}
+
+	refreshed := service.Refresh(context.Background(), runs, 2)
+	if refreshed[0].Run.State != "completed" || refreshed[1].Run.State != "completed" {
+		t.Fatalf("refresh did not use per-pipeline projects: %#v", refreshed)
+	}
+	gotRunProjects := append([]string(nil), client.RunProjects...)
+	slices.Sort(gotRunProjects)
+	if !slices.Equal(gotRunProjects, []string{"alpha", "beta"}) {
+		t.Fatalf("refresh projects = %v, want [alpha beta]", gotRunProjects)
+	}
+}
+
 func readyReviews(ids ...int) []runner.Review {
 	reviews := make([]runner.Review, len(ids))
 	for i, id := range ids {

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/ineslino/azpipe/internal/azdo"
 	domainrunner "github.com/ineslino/azpipe/internal/runner"
 )
 
@@ -146,8 +147,21 @@ func (m reviewModel) view() string {
 			ready++
 		}
 	}
+	pipelines := make([]azdo.Pipeline, len(m.reviews))
+	for i, review := range m.reviews {
+		pipelines[i] = review.Selection.Pipeline
+	}
+	includeProject := hasMultiplePipelineProjects(pipelines)
 	columns := []int{2, 8, 4, 5, max(1, width-31)}
-	lines := []string{catalogTitleStyle.Render(fmt.Sprintf("Revisão · %d pipelines · %d prontas · %d bloqueadas", len(m.reviews), ready, blocked)), catalogHeaderStyle.Width(width).Render(tableCells(columns, "", "ESTADO", "MODO", "ID", "PIPELINE"))}
+	headers := []string{"", "ESTADO", "MODO", "ID", "PIPELINE"}
+	if includeProject && width >= 70 {
+		columns = []int{2, 8, 4, 5, 15, max(1, width-49)}
+		headers = []string{"", "ESTADO", "MODO", "ID", "PROJECTO", "PIPELINE"}
+	} else if includeProject {
+		columns = []int{2, 8, 4, 5, 12, max(1, width-46)}
+		headers = []string{"", "ESTADO", "MODO", "ID", "PROJECTO", "PIPELINE"}
+	}
+	lines := []string{catalogTitleStyle.Render(fmt.Sprintf("Revisão · %d pipelines · %d prontas · %d bloqueadas", len(m.reviews), ready, blocked)), catalogHeaderStyle.Width(width).Render(tableCells(columns, headers...))}
 	start := m.offset / m.listCapacity() * m.listCapacity()
 	end := min(len(m.reviews), start+m.listCapacity())
 	for i := start; i < end; i++ {
@@ -160,7 +174,11 @@ func (m reviewModel) view() string {
 		if i == m.offset {
 			marker = ">"
 		}
-		line := tableCells(columns, marker, state, string(r.Selection.Mode), fmt.Sprint(r.Selection.ID()), r.Selection.Pipeline.Name)
+		values := []string{marker, state, string(r.Selection.Mode), fmt.Sprint(r.Selection.ID()), r.Selection.Pipeline.Name}
+		if includeProject {
+			values = []string{marker, state, string(r.Selection.Mode), fmt.Sprint(r.Selection.ID()), r.Selection.Pipeline.Project, r.Selection.Pipeline.Name}
+		}
+		line := tableCells(columns, values...)
 		style := modeStyle(string(r.Selection.Mode))
 		if r.Err != nil {
 			style = catalogWarningStyle
@@ -183,7 +201,7 @@ func (m reviewModel) view() string {
 		}
 		wrapped := strings.Split(ansi.Wrap(detail, width, ""), "\n")
 		scroll := min(m.horizontal, max(0, len(wrapped)-5))
-		lines = append(lines, catalogHeaderStyle.Render(truncateWidth("── Detalhe · "+r.Selection.Pipeline.Name, width)))
+		lines = append(lines, catalogHeaderStyle.Render(truncateWidth("── Detalhe · "+pipelineDisplayName(r.Selection.Pipeline, includeProject), width)))
 		for _, line := range wrapped[scroll:min(len(wrapped), scroll+5)] {
 			lines = append(lines, catalogDetailStyle.Render(line))
 		}

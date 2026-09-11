@@ -13,6 +13,7 @@ import (
 
 type JournalRecord struct {
 	PipelineID   int              `json:"pipelineId"`
+	Project      string           `json:"project,omitempty"`
 	PipelineName string           `json:"pipelineName,omitempty"`
 	Run          azdo.PipelineRun `json:"run"`
 	Error        string           `json:"error,omitempty"`
@@ -41,7 +42,11 @@ func NewJournal(organization, project string, reviews []Review) (*Journal, error
 	f.Close()
 	j := &Journal{Organization: organization, Project: project, path: f.Name(), Runs: make([]JournalRecord, len(reviews))}
 	for i, r := range reviews {
-		j.Runs[i] = JournalRecord{PipelineID: r.Selection.ID(), PipelineName: r.Selection.Pipeline.Name, Error: "submissão incerta: verificar Azure DevOps antes de repetir"}
+		recordProject := r.Selection.Pipeline.Project
+		if recordProject == "" {
+			recordProject = project
+		}
+		j.Runs[i] = JournalRecord{PipelineID: r.Selection.ID(), Project: recordProject, PipelineName: r.Selection.Pipeline.Name, Error: "submissão incerta: verificar Azure DevOps antes de repetir"}
 	}
 	return j, j.save()
 }
@@ -112,7 +117,11 @@ func (j *Journal) Results() []RunResult {
 		if name == "" {
 			name = fmt.Sprintf("pipeline %d", r.PipelineID)
 		}
-		results[i] = RunResult{Review: Review{Selection: Selection{Pipeline: azdo.Pipeline{ID: r.PipelineID, Name: name}}}, Run: r.Run}
+		project := r.Project
+		if project == "" && j.Project != AllProjects {
+			project = j.Project
+		}
+		results[i] = RunResult{Review: Review{Selection: Selection{Pipeline: azdo.Pipeline{ID: r.PipelineID, Project: project, Name: name}}}, Run: r.Run}
 		if r.Run.ID == 0 {
 			results[i].Err = fmt.Errorf("submissão incerta: verificar Azure DevOps; retoma não volta a lançar")
 		}

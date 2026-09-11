@@ -13,6 +13,7 @@ import (
 
 type ProfileSelection struct {
 	ID         int               `json:"id"`
+	Project    string            `json:"project,omitempty"`
 	Mode       Mode              `json:"mode"`
 	Branch     string            `json:"branch"`
 	Parameters map[string]string `json:"parameters"`
@@ -97,12 +98,23 @@ func validateProfile(p Profile) error {
 	if p.Version != 1 || p.Name == "" || p.Organization == "" || p.Project == "" || len(p.Selections) == 0 || len(p.Selections) > 500 {
 		return fmt.Errorf("perfil incompleto ou versão não suportada")
 	}
-	seen := map[int]bool{}
+	seen := map[string]bool{}
 	for _, s := range p.Selections {
-		if s.ID <= 0 || seen[s.ID] || (s.Mode != ModeRun && s.Mode != ModePlan) || strings.TrimSpace(s.Branch) == "" {
+		if s.ID <= 0 || (s.Mode != ModeRun && s.Mode != ModePlan) || strings.TrimSpace(s.Branch) == "" {
 			return fmt.Errorf("selecção inválida no perfil")
 		}
-		seen[s.ID] = true
+		project := strings.TrimSpace(s.Project)
+		if project == "" {
+			project = strings.TrimSpace(p.Project)
+		}
+		if project == AllProjects {
+			return fmt.Errorf("selecção inválida no perfil: projecto em falta")
+		}
+		key := PipelineKey(azdo.Pipeline{Project: project, ID: s.ID})
+		if seen[key] {
+			return fmt.Errorf("selecção inválida no perfil")
+		}
+		seen[key] = true
 	}
 	return nil
 }
@@ -163,13 +175,32 @@ func (p Profile) Resolve(organization, project string, pipelines []azdo.Pipeline
 	if !SameOrganization(p.Organization, organization) || !SameContext(p.Project, project) {
 		return nil, fmt.Errorf("perfil pertence a outro contexto")
 	}
-	index := map[int]azdo.Pipeline{}
+	index := map[string]azdo.Pipeline{}
 	for _, pipeline := range pipelines {
-		index[pipeline.ID] = pipeline
+		project := pipeline.Project
+		if project == "" {
+			project = p.Project
+		}
+		index[PipelineKey(azdo.Pipeline{Project: project, ID: pipeline.ID})] = pipeline
 	}
 	result := make([]Selection, 0, len(p.Selections))
 	for _, saved := range p.Selections {
-		pipeline, ok := index[saved.ID]
+		project := strings.TrimSpace(saved.Project)
+		if project == "" {
+			project = strings.TrimSpace(p.Project)
+		}
+		pipeline, ok := index[PipelineKey(azdo.Pipeline{Project: project, ID: saved.ID})]
+		if !ok && project == AllProjects {
+			matches := make([]azdo.Pipeline, 0, 1)
+			for _, candidate := range pipelines {
+				if candidate.ID == saved.ID {
+					matches = append(matches, candidate)
+				}
+			}
+			if len(matches) == 1 {
+				pipeline, ok = matches[0], true
+			}
+		}
 		if !ok {
 			return nil, fmt.Errorf("pipeline %d já não está no catálogo", saved.ID)
 		}

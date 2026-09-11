@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	domainrunner "github.com/ineslino/azpipe/internal/runner"
 )
 
 type catalogAction struct {
@@ -22,7 +23,7 @@ func (m AppModel) catalogActions() []catalogAction {
 		activeReason = "Altera a pesquisa para encontrar uma pipeline."
 	}
 	modeReason := activeReason
-	if _, selected := m.catalog.selected[pipeline.ID]; active && !selected {
+	if _, selected := m.catalog.selected[domainrunner.PipelineKey(pipeline)]; active && !selected {
 		modeReason = "Selecciona a pipeline activa com espaço."
 	}
 	if active && modeReason == "" && pipeline.PlanContract == nil {
@@ -30,9 +31,15 @@ func (m AppModel) catalogActions() []catalogAction {
 	}
 	planReason := selection
 	for _, p := range m.catalog.pipelines {
-		if _, selected := m.catalog.selected[p.ID]; selected && p.PlanContract == nil {
+		if _, selected := m.catalog.selected[domainrunner.PipelineKey(p)]; selected && p.PlanContract == nil {
 			planReason = "PLAN indisponível: a selecção inclui pipelines sem contrato."
 		}
+	}
+	contextReason := "Só está disponível depois de carregar a lista de projectos."
+	if m.demo {
+		contextReason = "A demonstração não tem uma organização ligada."
+	} else if len(m.context.projects) > 0 {
+		contextReason = "Escolhe outro projecto ou Todos os projectos; o catálogo actual será substituído."
 	}
 	return []catalogAction{
 		{"Rever selecção", "enter", "Valida branch e parâmetros. Ainda não lança runs.", selection},
@@ -44,7 +51,13 @@ func (m AppModel) catalogActions() []catalogAction {
 		{"Guardar selecção como perfil", "s", "Guarda parâmetros não secretos após confirmação.", selection},
 		{"Carregar perfil", "l", "Substitui a selecção. Exige uma nova revisão.", ""},
 		{"Consultar lotes anteriores", "h", "Retoma monitorização sem submeter runs.", ""},
-		{"Procurar pipelines", "/", "Filtra por nome, ID, tipo, pasta, repositório ou tag.", ""},
+		{"Mudar projecto", "c", "Volta ao selector de projectos da organização.", func() string {
+			if m.demo || len(m.context.projects) == 0 {
+				return contextReason
+			}
+			return ""
+		}()},
+		{"Procurar pipelines", "/", "Filtra por projecto, nome, ID, tipo, pasta, repositório ou tag.", ""},
 		{"Editar parâmetros JSON (avançado)", "J", "Não contorna a validação do schema. Nunca uses segredos.", activeReason},
 	}
 }

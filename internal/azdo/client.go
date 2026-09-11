@@ -36,6 +36,7 @@ type Repository struct {
 
 type Pipeline struct {
 	ID              int           `json:"id"`
+	Project         string        `json:"project,omitempty"`
 	Name            string        `json:"name"`
 	Folder          string        `json:"folder"`
 	RepoName        string        `json:"repoName"`

@@ -5,6 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ineslino/azpipe/internal/azdo"
+	domain "github.com/ineslino/azpipe/internal/runner"
 	"strings"
 	"testing"
 )
@@ -37,7 +38,7 @@ func TestBorderedCatalogSectionsAndReviewPaging(t *testing.T) {
 			}
 		}
 		for _, p := range pipelines {
-			m.catalog.selected[p.ID] = "RUN"
+			m.catalog.selected[domain.PipelineKey(p)] = "RUN"
 		}
 		m, cmd := pressApp(t, m, "enter")
 		m, _ = runAppCmd(t, m, cmd)
@@ -71,7 +72,7 @@ func TestBorderedCatalogSectionsAndReviewPaging(t *testing.T) {
 
 func TestSelectedRowKeepsFocusMarkerWithoutColour(t *testing.T) {
 	m := catalogFixture()
-	m.selected[101] = "PLAN"
+	m.selected[domain.PipelineKey(m.pipelines[0])] = "PLAN"
 	row := m.pipelineRow(m.pipelines[0], true)
 	if !strings.HasPrefix(row, ">[x]") || !strings.Contains(row, "PLAN") {
 		t.Fatalf("missing independent selection/focus/mode: %s", row)

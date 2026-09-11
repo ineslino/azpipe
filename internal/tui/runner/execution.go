@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/ineslino/azpipe/internal/azdo"
 	domainrunner "github.com/ineslino/azpipe/internal/runner"
 )
 
@@ -137,6 +138,11 @@ func (m executionModel) view() string {
 	if !m.queued {
 		lines = append(lines, "A colocar pipelines em execução...")
 	}
+	pipelines := make([]azdo.Pipeline, len(m.runs))
+	for i, result := range m.runs {
+		pipelines[i] = result.Review.Selection.Pipeline
+	}
+	includeProject := hasMultiplePipelineProjects(pipelines)
 	height := m.height
 	if height == 0 {
 		height = defaultHeight
@@ -145,7 +151,7 @@ func (m executionModel) view() string {
 	available := m.pageSize()
 	end := min(len(m.runs), m.offset+available)
 	for _, result := range m.runs[m.offset:end] {
-		name := result.Review.Selection.Pipeline.Name
+		name := pipelineDisplayName(result.Review.Selection.Pipeline, includeProject)
 		if result.Err != nil {
 			line := fmt.Sprintf("ERROR %s: %v", name, result.Err)
 			if result.Run.WebURL != "" {

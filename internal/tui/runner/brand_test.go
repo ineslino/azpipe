@@ -44,7 +44,7 @@ func TestWelcomeBannerFitsInitialScreen(t *testing.T) {
 		if lipgloss.Width(view) > width || lipgloss.Height(view) > 24 {
 			t.Fatalf("welcome screen does not fit %dx24", width)
 		}
-		for _, text := range []string{"Organização:", "Projecto:", "enter", "esc"} {
+		for _, text := range []string{"Organização:", "enter", "esc"} {
 			if !strings.Contains(ansi.Strip(view), text) {
 				t.Fatalf("missing context control %q", text)
 			}

@@ -39,7 +39,7 @@ type CatalogReviewMsg struct {
 type CatalogModel struct {
 	pipelines      []azdo.Pipeline
 	visible        []azdo.Pipeline
-	selected       map[int]domainrunner.Mode
+	selected       map[string]domainrunner.Mode
 	search         textinput.Model
 	branch         textinput.Model
 	cursor         int
@@ -49,10 +49,10 @@ type CatalogModel struct {
 	warning        string
 	notice         string
 	parameterInput textinput.Model
-	parameters     map[int]map[string]string
+	parameters     map[string]map[string]string
 	editor         parameterEditor
 	branchBefore   string
-	branches       map[int]string
+	branches       map[string]string
 }
 
 // NewCatalogModel creates a catalog with all pipelines visible and main as branch.
@@ -73,7 +73,7 @@ func NewCatalogModel(pipelines []azdo.Pipeline) CatalogModel {
 
 	model := CatalogModel{
 		pipelines: slices.Clone(pipelines),
-		selected:  make(map[int]domainrunner.Mode),
+		selected:  make(map[string]domainrunner.Mode),
 		search:    search,
 		branch:    branch,
 		width:     defaultWidth,
@@ -84,8 +84,8 @@ func NewCatalogModel(pipelines []azdo.Pipeline) CatalogModel {
 	model.parameterInput.Prompt = "Parâmetros JSON (sem segredos): "
 	model.parameterInput.CharLimit = 4096
 	model.parameterInput.Width = 60
-	model.parameters = map[int]map[string]string{}
-	model.branches = map[int]string{}
+	model.parameters = map[string]map[string]string{}
+	model.branches = map[string]string{}
 	return model
 }
 
@@ -98,22 +98,23 @@ func (m CatalogModel) Init() tea.Cmd {
 func (m CatalogModel) Selected() []domainrunner.Selection {
 	selections := make([]domainrunner.Selection, 0, len(m.selected))
 	for _, pipeline := range m.pipelines {
-		mode, ok := m.selected[pipeline.ID]
+		key := domainrunner.PipelineKey(pipeline)
+		mode, ok := m.selected[key]
 		if !ok {
 			continue
 		}
 		selections = append(selections, domainrunner.Selection{
 			Pipeline: pipeline,
 			Mode:     mode,
-			Branch:   m.branchFor(pipeline.ID),
-			Inputs:   m.parameters[pipeline.ID],
+			Branch:   m.branchFor(pipeline),
+			Inputs:   m.parameters[key],
 		})
 	}
 	return selections
 }
 
-func (m CatalogModel) branchFor(id int) string {
-	if branch, ok := m.branches[id]; ok {
+func (m CatalogModel) branchFor(pipeline azdo.Pipeline) string {
+	if branch, ok := m.branches[domainrunner.PipelineKey(pipeline)]; ok {
 		return branch
 	}
 	return strings.TrimSpace(m.branch.Value())
@@ -152,13 +153,13 @@ func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.branch.Focus()
 	case "e":
 		if pipeline, ok := m.active(); ok {
-			m.editor = newParameterEditor(m.parameters[pipeline.ID])
+			m.editor = newParameterEditor(m.parameters[domainrunner.PipelineKey(pipeline)])
 			m.input = inputParameterForm
 		}
 		return m, nil
 	case "J":
 		if pipeline, ok := m.active(); ok {
-			data, _ := json.Marshal(m.parameters[pipeline.ID])
+			data, _ := json.Marshal(m.parameters[domainrunner.PipelineKey(pipeline)])
 			if string(data) == "null" {
 				data = []byte("{}")
 			}
@@ -169,7 +170,7 @@ func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "P", "R":
 		if msg.String() == "P" {
 			for _, pipeline := range m.pipelines {
-				if _, selected := m.selected[pipeline.ID]; selected && pipeline.PlanContract == nil {
+				if _, selected := m.selected[domainrunner.PipelineKey(pipeline)]; selected && pipeline.PlanContract == nil {
 					m.warning = "PLAN global bloqueado: seleção contém pipeline sem contrato"
 					return m, nil
 				}
@@ -190,16 +191,18 @@ func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.clampCursor()
 	case " ":
 		if pipeline, ok := m.active(); ok {
-			if _, selected := m.selected[pipeline.ID]; selected {
-				delete(m.selected, pipeline.ID)
+			key := domainrunner.PipelineKey(pipeline)
+			if _, selected := m.selected[key]; selected {
+				delete(m.selected, key)
 			} else {
-				m.selected[pipeline.ID] = domainrunner.ModeRun
+				m.selected[key] = domainrunner.ModeRun
 			}
 			m.warning = ""
 		}
 	case "m", "p":
 		if pipeline, ok := m.active(); ok {
-			if _, selected := m.selected[pipeline.ID]; !selected {
+			key := domainrunner.PipelineKey(pipeline)
+			if _, selected := m.selected[key]; !selected {
 				m.warning = "Seleccione primeiro com espaço; depois altere o modo com m."
 				return m, nil
 			}
@@ -207,10 +210,10 @@ func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.warning = "PLAN indisponível: contrato validado em falta"
 				return m, nil
 			}
-			if m.selected[pipeline.ID] == domainrunner.ModePlan {
-				m.selected[pipeline.ID] = domainrunner.ModeRun
+			if m.selected[key] == domainrunner.ModePlan {
+				m.selected[key] = domainrunner.ModeRun
 			} else {
-				m.selected[pipeline.ID] = domainrunner.ModePlan
+				m.selected[key] = domainrunner.ModePlan
 			}
 			m.warning = ""
 		}
@@ -234,7 +237,7 @@ func (m CatalogModel) updateInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if pipeline, ok := m.active(); ok {
-				m.parameters[pipeline.ID] = values
+				m.parameters[domainrunner.PipelineKey(pipeline)] = values
 			}
 			m.input = inputNone
 			return m, nil
@@ -244,7 +247,7 @@ func (m CatalogModel) updateInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if key, ok := msg.(tea.KeyMsg); ok && key.Type == tea.KeyEnter {
 		if m.input == inputBranch {
-			m.branches = map[int]string{}
+			m.branches = map[string]string{}
 		}
 		if m.input == inputParameters {
 			var params map[string]string
@@ -253,7 +256,7 @@ func (m CatalogModel) updateInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if pipeline, ok := m.active(); ok {
-				m.parameters[pipeline.ID] = params
+				m.parameters[domainrunner.PipelineKey(pipeline)] = params
 			}
 			m.parameterInput.Blur()
 			m.warning = ""
@@ -310,6 +313,7 @@ func (m *CatalogModel) filter() {
 
 func searchablePipeline(pipeline azdo.Pipeline) string {
 	return strings.ToLower(strings.Join([]string{
+		pipeline.Project,
 		pipeline.Name,
 		strconv.Itoa(pipeline.ID),
 		pipeline.Folder,
@@ -360,7 +364,13 @@ func (m CatalogModel) View() string {
 	inner := max(1, m.width-4)
 	widths := []int{4, 4, 5, 10, max(1, inner-35)}
 	headers := []string{"SEL", "MODO", "ID", "TIPO", "PIPELINE"}
-	if m.width < 70 {
+	if m.hasProjectColumn() && m.width >= 70 {
+		widths = []int{4, 4, 5, 15, 10, max(1, inner-53)}
+		headers = []string{"SEL", "MODO", "ID", "PROJECTO", "TIPO", "PIPELINE"}
+	} else if m.hasProjectColumn() {
+		widths = []int{4, 4, 5, 12, max(1, inner-34)}
+		headers = []string{"SEL", "MODO", "ID", "PROJECTO", "PIPELINE"}
+	} else if m.width < 70 {
 		widths = []int{4, 4, 5, max(1, inner-22)}
 		headers = []string{"SEL", "MODO", "ID", "PIPELINE"}
 	}
@@ -370,9 +380,10 @@ func (m CatalogModel) View() string {
 	}
 	for index := start; index < end; index++ {
 		pipeline := m.visible[index]
+		key := domainrunner.PipelineKey(pipeline)
 		marker := " [ ]"
 		mode := "-"
-		if selectedMode, ok := m.selected[pipeline.ID]; ok {
+		if selectedMode, ok := m.selected[key]; ok {
 			marker = " [x]"
 			mode = string(selectedMode)
 		}
@@ -380,13 +391,17 @@ func (m CatalogModel) View() string {
 			marker = ">" + marker[1:]
 		}
 		values := []string{marker, mode, strconv.Itoa(pipeline.ID), pipeline.Type(), pipeline.Name}
-		if m.width < 70 {
+		if m.hasProjectColumn() && m.width >= 70 {
+			values = []string{marker, mode, strconv.Itoa(pipeline.ID), pipeline.Project, pipeline.Type(), pipeline.Name}
+		} else if m.hasProjectColumn() {
+			values = []string{marker, mode, strconv.Itoa(pipeline.ID), pipeline.Project, pipeline.Name}
+		} else if m.width < 70 {
 			values = []string{marker, mode, strconv.Itoa(pipeline.ID), pipeline.Name}
 		}
 		row := tableCells(widths, values...)
 		if index == m.cursor {
 			row = catalogActiveStyle.Width(inner).Render(row)
-		} else if mode, selected := m.selected[pipeline.ID]; selected {
+		} else if mode, selected := m.selected[key]; selected {
 			row = modeStyle(string(mode)).Render(row)
 		} else if index%2 == 0 {
 			row = stripeStyle.Width(inner).Render(row)
@@ -403,7 +418,7 @@ func (m CatalogModel) View() string {
 		if pipeline.PlanContract != nil {
 			capability = "PLAN disponível por contrato"
 		}
-		detail = catalogDetailStyle.Render(strings.TrimSpace(m.pipelineDetail(pipeline))) + "\n" + planStyle.Render(capability) + catalogDetailStyle.Render(fmt.Sprintf(" · %d parâmetros", len(m.parameters[pipeline.ID])))
+		detail = catalogDetailStyle.Render(strings.TrimSpace(m.pipelineDetail(pipeline))) + "\n" + planStyle.Render(capability) + catalogDetailStyle.Render(fmt.Sprintf(" · %d parâmetros", len(m.parameters[domainrunner.PipelineKey(pipeline)])))
 	}
 	lines = append(lines, section("DETALHE DA PIPELINE ACTIVA", detail, m.width))
 	if m.input == inputBranch {
@@ -454,7 +469,7 @@ func (m CatalogModel) helpView() string {
 	if len(m.selected) > 0 {
 		items = []string{fmt.Sprintf("enter rever %d pipelines", len(m.selected)), "espaço seleccionar"}
 	}
-	return shortcutBar(max(1, m.width-4), append(items, "a acções", "? ajuda", "q sair")...)
+	return shortcutBar(max(1, m.width-4), append(items, "a acções", "? ajuda", "c projecto", "q sair")...)
 }
 
 func (m CatalogModel) nextStep() string {
@@ -474,7 +489,7 @@ func (m CatalogModel) pipelineRow(pipeline azdo.Pipeline, active bool) string {
 		marker = ">"
 	}
 	mode := "-"
-	if selectedMode, selected := m.selected[pipeline.ID]; selected {
+	if selectedMode, selected := m.selected[domainrunner.PipelineKey(pipeline)]; selected {
 		check = "[x]"
 		mode = string(selectedMode)
 	}
@@ -487,10 +502,34 @@ func (m CatalogModel) pipelineRow(pipeline azdo.Pipeline, active bool) string {
 
 func (m CatalogModel) pipelineDetail(pipeline azdo.Pipeline) string {
 	detail := fmt.Sprintf("    repo: %s | folder: %s | tags: %s", pipeline.RepoName, pipeline.Folder, strings.Join(pipeline.Tags, ", "))
+	if pipeline.Project != "" {
+		detail = fmt.Sprintf("    projecto: %s | %s", pipeline.Project, strings.TrimSpace(strings.TrimPrefix(detail, "    ")))
+	}
 	if pipeline.MetadataWarning != "" {
 		detail = "    ⚠ " + pipeline.MetadataWarning + " | " + detail
 	}
 	return truncateWidth(detail, m.width)
+}
+
+func (m CatalogModel) hasProjectColumn() bool {
+	return hasMultiplePipelineProjects(m.pipelines)
+}
+
+func hasMultiplePipelineProjects(pipelines []azdo.Pipeline) bool {
+	projects := map[string]bool{}
+	for _, pipeline := range pipelines {
+		if pipeline.Project != "" {
+			projects[strings.ToLower(pipeline.Project)] = true
+		}
+	}
+	return len(projects) > 1
+}
+
+func pipelineDisplayName(pipeline azdo.Pipeline, includeProject bool) string {
+	if includeProject && pipeline.Project != "" {
+		return pipeline.Project + " / " + pipeline.Name
+	}
+	return pipeline.Name
 }
 
 func truncateWidth(value string, width int) string {

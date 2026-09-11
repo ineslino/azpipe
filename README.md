@@ -21,6 +21,7 @@ A demo usa dados fictícios, sem credenciais, chamadas ao Azure DevOps ou escrit
 ## O que faz
 
 - Lista única com filtros por nome, tipo, pasta, repositório, ID e tags.
+- Ligação à organização, selector de projecto ou **Todos os projectos**, com o projecto de origem preservado no catálogo global.
 - Selecção múltipla, RUN/PLAN por pipeline, formulários tipados e perfis reutilizáveis.
 - Revisão de branch, SHA, parâmetros enviados e preview antes da confirmação exacta `EXECUTAR`.
 - Até quatro pedidos em paralelo, estado e URL por run, histórico retomável sem ressubmissão.
@@ -66,7 +67,7 @@ go build -o azpipe .
 ./azpipe
 ```
 
-A TUI pede organização e projecto. Para instalar a versão **publicada**, que pode ainda não incluir estas alterações:
+A TUI pede a organização e valida a sessão com as credenciais configuradas. Depois mostra um selector com os projectos acessíveis e a opção **Todos os projectos**. Ao escolher todos, carrega o catálogo da organização e mantém o projecto de origem em cada pipeline, para poderes filtrar por projecto com `/`. Para instalar a versão **publicada**, que pode ainda não incluir estas alterações:
 
 ```bash
 go install github.com/ineslino/azpipe@latest
@@ -84,6 +85,7 @@ Usa `AZDO_PAT` injectado pelo teu mecanismo de credenciais e `AZDO_ORG` para o c
 | `m` / `P` / `R` | Alternar modo / PLAN para selecção / RUN para selecção |
 | `e` / `b` | Parâmetros tipados / branch |
 | `s` / `l` / `h` | Guardar perfil / carregar perfil / histórico |
+| `c` | Mudar o projecto ou voltar a **Todos os projectos** |
 | Enter / Esc | Rever / regressar sem lançar |
 
 Exemplo CLI, apenas preview de um ficheiro de selecção preparado conforme o guia:

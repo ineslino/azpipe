@@ -1,10 +1,11 @@
 package runner
 
 import (
-	"github.com/ineslino/azpipe/internal/azdo"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/ineslino/azpipe/internal/azdo"
 )
 
 func TestProfilesRoundTripContextAndNoOverwrite(t *testing.T) {
@@ -77,5 +78,46 @@ func TestJournalResumePersistsOnlyKnownIDs(t *testing.T) {
 	runs[0].Run.ID = 100
 	if err = loaded.UpdateRuns(runs); err == nil {
 		t.Fatal("changed accepted ID")
+	}
+}
+
+func TestProfilesResolveProjectAndPipelineIDTogether(t *testing.T) {
+	profile := Profile{
+		Version:      1,
+		Name:         "all-projects",
+		Organization: "example",
+		Project:      AllProjects,
+		Selections: []ProfileSelection{
+			{ID: 7, Project: "Alpha", Mode: ModeRun, Branch: "main"},
+			{ID: 7, Project: "Beta", Mode: ModeRun, Branch: "main"},
+		},
+	}
+	pipelines := []azdo.Pipeline{
+		{ID: 7, Project: "Alpha", Name: "alpha deploy"},
+		{ID: 7, Project: "Beta", Name: "beta deploy"},
+	}
+
+	selections, err := profile.Resolve("example", AllProjects, pipelines)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(selections) != 2 || selections[0].Pipeline.Project != "Alpha" || selections[1].Pipeline.Project != "Beta" {
+		t.Fatalf("resolved selections = %#v, want Alpha and Beta pipelines", selections)
+	}
+}
+
+func TestJournalResultsKeepProjectForAllProjectsContext(t *testing.T) {
+	t.Setenv("AZPIPE_DATA_DIR", t.TempDir())
+	j, err := NewJournal("example", AllProjects, []Review{
+		{Selection: Selection{Pipeline: azdo.Pipeline{ID: 7, Project: "Alpha", Name: "alpha deploy"}}},
+		{Selection: Selection{Pipeline: azdo.Pipeline{ID: 7, Project: "Beta", Name: "beta deploy"}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	results := j.Results()
+	if len(results) != 2 || results[0].Review.Selection.Pipeline.Project != "Alpha" || results[1].Review.Selection.Pipeline.Project != "Beta" {
+		t.Fatalf("journal projects = %#v, want Alpha and Beta", results)
 	}
 }

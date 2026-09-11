@@ -21,6 +21,7 @@ The demo uses fictional data, without credentials, Azure DevOps calls or profile
 ## Capabilities
 
 - One list with name, type, folder, repository, ID and tag filters.
+- Organization login, project selector or **All projects**, with the owning project retained in the organization-wide catalog.
 - Multi-selection, per-pipeline RUN/PLAN, typed forms and reusable profiles.
 - Branch, SHA, sent parameters and preview review before exact `EXECUTAR` confirmation.
 - Up to four concurrent requests, per-run status and URL, resumable history without resubmission.
@@ -66,7 +67,7 @@ go build -o azpipe .
 ./azpipe
 ```
 
-The TUI asks for organization and project. To install the **published** version, which may not yet include these changes:
+The TUI asks for the organization and validates the session with the configured credentials. It then shows a selector with accessible projects and an **All projects** option. When all projects are selected, the catalog is loaded per project and each pipeline keeps its owner, so you can filter by project with `/`. To install the **published** version, which may not yet include these changes:
 
 ```bash
 go install github.com/ineslino/azpipe@latest
@@ -84,6 +85,7 @@ Use `AZDO_PAT` injected by your credential mechanism and `AZDO_ORG` for context.
 | `m` / `P` / `R` | Toggle mode / PLAN for selection / RUN for selection |
 | `e` / `b` | Typed parameters / branch |
 | `s` / `l` / `h` | Save profile / load profile / history |
+| `c` | Change project or return to **All projects** |
 | Enter / Esc | Review / return without submitting |
 
 CLI example, preview only, using a selection file prepared as described in the guide:

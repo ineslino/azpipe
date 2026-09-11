@@ -26,6 +26,7 @@ A demo usa dados fictícios, sem credenciais, chamadas ao Azure DevOps ou escrit
 - Revisão de branch, SHA, parâmetros enviados e preview antes da confirmação exacta `EXECUTAR`.
 - Até quatro pedidos em paralelo, estado e URL por run, histórico retomável sem ressubmissão.
 - CLI para lotes, histórico, análise e consulta de pipelines.
+- Gestão de branches por repositório: filtro por criador, selecção múltipla e eliminação com revisão e confirmação explícita. Abre com `azpipe branches` ou `B` no catálogo; experimenta sem credenciais com `azpipe branches --demo`. Consulta as [salvaguardas e exemplos](docs/usage.md#gestão-de-branches).
 
 **PLAN exige um contrato explícito revisto pelo responsável da pipeline.** Uma preview expande YAML; não prova ausência de efeitos laterais. A preparação fixa o SHA e a revisão da definição, mas não congela serviços ou referências externas.
 
@@ -86,6 +87,7 @@ Usa `AZDO_PAT` injectado pelo teu mecanismo de credenciais e `AZDO_ORG` para o c
 | `e` / `b` | Parâmetros tipados / branch |
 | `s` / `l` / `h` | Guardar perfil / carregar perfil / histórico |
 | `c` | Mudar o projecto ou voltar a **Todos os projectos** |
+| `B` | Abrir a gestão de branches do projecto e repositório seleccionados |
 | Enter / Esc | Rever / regressar sem lançar |
 
 Exemplo CLI, apenas preview de um ficheiro de selecção preparado conforme o guia:

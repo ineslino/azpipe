@@ -59,6 +59,7 @@ func (m AppModel) catalogActions() []catalogAction {
 		}()},
 		{"Procurar pipelines", "/", "Filtra por projecto, nome, ID, tipo, pasta, repositório ou tag.", ""},
 		{"Editar parâmetros JSON (avançado)", "J", "Não contorna a validação do schema. Nunca uses segredos.", activeReason},
+		{"Gerir branches", "B", "Escolhe um repositório, filtra por criador e revê antes de eliminar.", ""},
 	}
 }
 

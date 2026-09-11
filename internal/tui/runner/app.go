@@ -24,6 +24,8 @@ const (
 
 // AppModel integrates context, catalog, review, and execution into one Bubble Tea model.
 type AppModel struct {
+	branchBrowser *BranchModel
+	branchesOnly  bool
 	screen        Screen
 	factory       ClientFactory
 	service       domainrunner.Service
@@ -83,6 +85,12 @@ func NewBootstrapApp(factory ClientFactory, defaults ContextDefaults) AppModel {
 	}
 }
 
+func NewBranchesBootstrap(factory ClientFactory, defaults ContextDefaults) AppModel {
+	m := NewBootstrapApp(factory, defaults)
+	m.branchesOnly = true
+	return m
+}
+
 // NewDemoApp creates a fully offline catalog and review workflow.
 func NewDemoApp() AppModel {
 	model := NewApp(nil, "DEMO", demoPipelines())
@@ -105,6 +113,16 @@ func (m AppModel) Init() tea.Cmd {
 
 // Update routes messages through the active screen and workflow transitions.
 func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if _, ok := msg.(branchExitMsg); ok {
+		m.branchBrowser = nil
+		return m, nil
+	}
+	if m.branchBrowser != nil {
+		updated, cmd := m.branchBrowser.Update(msg)
+		browser := updated.(BranchModel)
+		m.branchBrowser = &browser
+		return m, cmd
+	}
 	if size, ok := msg.(tea.WindowSizeMsg); ok {
 		m.height = size.Height
 		m.width = size.Width
@@ -166,6 +184,20 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, loadProjects(m.factory, typed.organization, token)
 		}
 		currentProject := m.context.selectedProject()
+		if m.branchesOnly && len(m.context.projects) > 0 {
+			if typed.project != currentProject {
+				return m, nil
+			}
+			if currentProject == domainrunner.AllProjects {
+				m.context.loading = false
+				m.context.err = "Escolhe um projecto específico para gerir branches."
+				return m, nil
+			}
+			browser := NewBranchModel(m.contextClient, currentProject)
+			browser.width, browser.height = m.width, m.height
+			m.branchBrowser = &browser
+			return m, browser.Init()
+		}
 		if len(m.context.projects) == 0 {
 			// Compatibility path for callers that already provide a project.
 			currentProject = strings.TrimSpace(m.context.project.Value())
@@ -319,6 +351,24 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case ScreenCatalog:
 		if key, ok := msg.(tea.KeyMsg); ok && m.catalog.input == inputNone {
+			if key.String() == "B" {
+				if m.demo {
+					browser := NewBranchDemo()
+					browser.returnToCatalog = true
+					browser.width, browser.height = m.width, m.height
+					m.branchBrowser = &browser
+					return m, nil
+				}
+				if m.contextClient == nil || m.project == domainrunner.AllProjects {
+					m.catalog.notice = "Escolhe um projecto com c antes de abrir Branches."
+					return m, nil
+				}
+				browser := NewBranchModel(m.contextClient, m.project)
+				browser.returnToCatalog = true
+				browser.width, browser.height = m.width, m.height
+				m.branchBrowser = &browser
+				return m, browser.Init()
+			}
 			if key.String() == "a" || key.String() == "?" {
 				index := 0
 				m.actions = &index
@@ -423,6 +473,9 @@ func (m AppModel) ExecutionError() error {
 
 // View renders the active screen.
 func (m AppModel) View() string {
+	if m.branchBrowser != nil {
+		return m.branchBrowser.View()
+	}
 	if m.actions != nil {
 		return m.contextHeader() + m.actionsView()
 	}
@@ -431,7 +484,12 @@ func (m AppModel) View() string {
 	}
 	switch m.screen {
 	case ScreenContext:
-		return section("LIGAÇÃO AO AZURE DEVOPS", m.context.view(), m.width)
+		view := m.context.view()
+		if m.branchesOnly {
+			view = strings.ReplaceAll(view, "catálogo de pipelines", "gestão de branches")
+			view = strings.ReplaceAll(view, "abrir catálogo", "abrir repositórios")
+		}
+		return section("LIGAÇÃO AO AZURE DEVOPS", view, m.width)
 	case ScreenCatalog:
 		catalog := m.catalog
 		banner := ""

@@ -15,11 +15,16 @@ var authCmd = &cobra.Command{
 var authSetCmd = &cobra.Command{
 	Use:   "set",
 	Short: "Store authentication settings and optional defaults",
-	Example: `  azpipe auth set --pat mytoken123 --org myorg --project myproject
+	Example: `  # Preferred: inject the PAT outside the azpipe config
+  export AZDO_PAT=<pat-injected-by-your-credential-manager>
+  export AZDO_ORG=myorg
+  azpipe
 
-  # Preferred: keep the PAT outside the config file
-  export AZDO_PAT=mytoken123
-  export AZDO_ORG=myorg`,
+  # Or configure an external adapter once; no secret is stored by azpipe
+  azpipe auth set --org myorg \\
+    --auth-executable /path/to/credential-adapter \\
+    --auth-profile my-profile \\
+    --expected-identity user@example.com`,
 	RunE: runAuthSet,
 }
 

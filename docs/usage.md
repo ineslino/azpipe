@@ -287,12 +287,27 @@ way to persist a PAT.
 
 ### `auth`
 
-```
-azpipe auth set --pat <token> [--org <org>] [--project PROJECT]
+Preferred when a credential manager injects the PAT into the process:
+
+```bash
+export AZDO_PAT=<pat-injected-by-your-credential-manager>
+export AZDO_ORG=myorg
+azpipe
 ```
 
-Stores a legacy PAT and defaults in `~/.config/azpipe/config.yaml`. The file is written
-with permissions `0600`; prefer `AZDO_PAT` or external credential injection.
+Or configure an external adapter once. This stores only adapter metadata and defaults:
+
+```bash
+azpipe auth set --org myorg \
+  --auth-executable /path/to/credential-adapter \
+  --auth-profile my-profile \
+  --expected-identity user@example.com
+```
+
+Environment variables override the local settings. `azpipe auth set --pat <token>`
+remains available for backwards compatibility and stores a legacy PAT in
+`~/.config/azpipe/config.yaml`. The file is written with permissions `0600`; prefer
+`AZDO_PAT` or external credential injection.
 
 ### `projects`
 

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Branch browser (`azpipe branches`, catalog `B`) with creator/name filters, repository selection, offline demo and guarded multi-delete. CLI `branches list` and preview-first `branches delete` share default-branch, policy, lock, active-PR and SHA checks.
 - Documented user-local installation, persistent PATH setup and offline verification.
 - Contextual action menu (`a` / `?`), focused footer, next-step guidance and review error recovery.
 - Responsive AZPIPE block banner in the catalog and offline demo.

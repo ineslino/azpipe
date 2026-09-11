@@ -26,6 +26,7 @@ The demo uses fictional data, without credentials, Azure DevOps calls or profile
 - Branch, SHA, sent parameters and preview review before exact `EXECUTAR` confirmation.
 - Up to four concurrent requests, per-run status and URL, resumable history without resubmission.
 - CLI batch operations, history, analysis and pipeline queries.
+- Repository-scoped branch management: creator filtering, multi-selection and deletion with review and explicit confirmation. Open `azpipe branches` or press `B` in the catalog; try offline with `azpipe branches --demo`. See [safeguards and examples](docs/usage.md#gestão-de-branches) (Portuguese).
 
 **PLAN requires an explicit contract reviewed by the pipeline owner.** Preview expands YAML; it does not prove the absence of side effects. Preparation pins the source SHA and definition revision, but does not freeze external services or references.
 
@@ -86,6 +87,7 @@ Use `AZDO_PAT` injected by your credential mechanism and `AZDO_ORG` for context,
 | `e` / `b` | Typed parameters / branch |
 | `s` / `l` / `h` | Save profile / load profile / history |
 | `c` | Change project or return to **All projects** |
+| `B` | Open branch management for the selected project and repository |
 | Enter / Esc | Review / return without submitting |
 
 CLI example, preview only, using a selection file prepared as described in the guide:

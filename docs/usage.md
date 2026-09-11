@@ -4,6 +4,36 @@ A terminal tool for DevOps engineers who need fast, focused visibility into Azur
 pipeline health — run history, failure trends, stage breakdowns, and repo-to-pipeline
 mapping — without leaving the shell.
 
+## Gestão de branches
+
+```bash
+azpipe branches                 # Escolher projecto e repositório
+azpipe branches --demo          # Dados fictícios; nunca elimina
+azpipe branches list --org example-org --project sample-project --repo sample-repo --creator 'user@example.com' --filter 'feat/' --output json
+azpipe branches delete --org example-org --project sample-project --repo sample-repo --branch 'feat/example' # Só revisão
+```
+
+No catálogo de pipelines, `B` abre a mesma área. Esta primeira versão trabalha num projecto e num repositório de cada vez, não em **Todos os projectos**.
+
+Na lista: `/` filtra o nome, `u` filtra o criador, `c` limpa os filtros, espaço selecciona, Enter revê, `r` actualiza e limpa a selecção, `b` muda de repositório e `q` sai. Selecções ocultas pelo filtro continuam seleccionadas e aparecem na revisão. Usa setas para percorrer a revisão e `←`/`→` para deslocar o detalhe completo. Esc regressa sem eliminar. A confirmação exige escrever exactamente `ELIMINAR`; a demo nunca envia eliminações.
+
+O criador vem de `GitRef.creator`: não é o autor do último commit nem o autor de um PR. O filtro aceita parte do nome, email ou ID, sem distinguir maiúsculas. Sem esse campo, mostra «criador desconhecido» e não inventa ownership. A coluna CLI `IS_LOCKED` só representa o bloqueio da ref, não todas as protecções.
+
+Para eliminar pela CLI, repete o comando de revisão com `--sha 'SHA_COMPLETO_DA_REVISAO' --confirm ELIMINAR`, substituindo o marcador pelo SHA de 40 caracteres apresentado. Sem confirmação, o comando não elimina.
+
+Salvaguardas:
+
+Quando aberta com `B`, Esc ou `q` regressa ao catálogo. Durante processamento, Esc, `q` ou Ctrl+C pede cancelamento e aguarda os resultados: impede o início das restantes eliminações, mas não desfaz pedidos já aceites. Uma operação em curso pode terminar com resultado incerto.
+
+- Bloqueia a branch default, `main`, `master`, `develop`, refs bloqueadas, políticas activas aplicáveis e PRs activos que usem a branch como origem ou destino.
+- Falhas ao consultar protecções impedem a eliminação. Cada branch é novamente revista antes de escrever; o pedido usa o SHA revisto para o servidor rejeitar alterações concorrentes.
+- Não prova que os commits foram integrados. Revê o conteúdo antes de confirmar; uma branch sem PR activo não é necessariamente descartável.
+- Elimina apenas refs remotas, nunca branches locais, ficheiros ou worktrees. Não há undo nem registo persistente de recuperação nesta versão.
+- Mostra resultados individuais; um lote pode terminar parcialmente. Não repete pedidos automaticamente. Perante timeout ou resultado incerto, confirma o estado no Azure DevOps antes de tentar novamente.
+- Usa as credenciais existentes. Leitura requer acesso ao código; escrita requer escopo adequado (`vso.code_write`) e permissões do servidor para eliminar branches. Não contorna políticas nem concede permissões. As verificações locais não são atómicas com alterações de políticas/PRs; as permissões do servidor continuam a ser a autoridade final.
+
+Contrato de API: [refs e creator](https://learn.microsoft.com/en-us/rest/api/azure/devops/git/refs/list?view=azure-devops-rest-7.1), [actualização condicional de refs](https://learn.microsoft.com/en-us/rest/api/azure/devops/git/refs/update-refs?view=azure-devops-rest-7.1) e [políticas aplicáveis](https://learn.microsoft.com/en-us/rest/api/azure/devops/git/policy-configurations/get?view=azure-devops-rest-7.1).
+
 ## Install
 
 For installation of the current checkout into `~/.local/bin`, persistent shell PATH
@@ -63,6 +93,21 @@ azpipe auth set --org myorg \
   --auth-profile my-profile \
   --expected-identity user@example.com
 ```
+
+The same adapter can be selected per shell without writing even its metadata:
+
+```bash
+export AZPIPE_AZDO_AS=/path/to/credential-adapter
+export AZPIPE_AUTH_PROFILE=my-profile
+export AZPIPE_EXPECTED_IDENTITY=user@example.com
+export AZDO_ORG=myorg
+azpipe
+```
+
+The adapter receives the profile as its first argument, followed by either
+`whoami` or the Azure CLI arguments used by `devops invoke`. The expected identity
+is checked before each operation; use the same variables with `azpipe branches` and
+the other commands.
 
 Environment variables override these local settings when present. The adapter
 configuration is portable metadata; the adapter remains responsible for storing
@@ -263,6 +308,9 @@ The non-interactive commands remain available for automation:
 azpipe projects list [--org <org>]
 azpipe repos list --org <org> --project PROJECT
 azpipe repos pipelines <repo-name> --org <org> --project PROJECT
+azpipe branches --demo
+azpipe branches list --org <org> --project PROJECT --repo REPOSITORY [--creator USER] [--filter TEXT]
+azpipe branches delete --org <org> --project PROJECT --repo REPOSITORY --branch BRANCH [--sha SHA --confirm ELIMINAR]
 azpipe pipelines list --org <org> --project PROJECT
 azpipe pipelines runs <pipeline-id> --project PROJECT [-n 20]
 azpipe pipelines analyze <pipeline-id> --project PROJECT [-n 25]

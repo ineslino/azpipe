@@ -95,7 +95,7 @@ func resolveProject() (string, error) {
 func resolvePAT() (string, error) {
 	t := config.PAT()
 	if t == "" {
-		return "", fmt.Errorf("PAT not set: run 'azpipe auth set --pat <token>' or export AZDO_PAT=<token>")
+		return "", fmt.Errorf("não existe uma sessão Azure DevOps configurada: use o azdo-as ou configure AZDO_PAT")
 	}
 	return t, nil
 }

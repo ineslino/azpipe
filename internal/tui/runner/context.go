@@ -206,7 +206,7 @@ func (m contextModel) view() string {
 	}
 	if len(m.projects) == 0 {
 		lines = append(lines,
-			"Introduza a organização. A autenticação usa AZDO_PAT, azdo-as ou a configuração local.",
+			"Introduza a organização. A aplicação usa a sessão Azure DevOps configurada neste computador.",
 			m.organization.View(),
 		)
 		if m.loading {

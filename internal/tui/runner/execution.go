@@ -131,7 +131,17 @@ func (m executionModel) view() string {
 			queued++
 		}
 	}
-	lines := []string{catalogTitleStyle.Render("Execução · acompanhamento do lote"), catalogDetailStyle.Render(fmt.Sprintf("%d em fila · %d a correr · %d sucesso · %d falha · %d sem ID", queued, running, succeeded, failed, unknown))}
+	width := m.width
+	if width == 0 {
+		width = defaultWidth - 4
+	}
+	lines := []string{"", catalogTitleStyle.Render("Acompanhar pipelines"), "", catalogDetailStyle.Render(fmt.Sprintf("%d em fila    %d a correr    %s", queued, running, quantity(succeeded, "concluída", "concluídas")))}
+	if failed > 0 || unknown > 0 {
+		lines = append(lines, catalogWarningStyle.Render(fmt.Sprintf("%d sem sucesso    %d sem ID confirmado", failed, unknown)))
+	}
+	if m.demo {
+		lines[1] = catalogTitleStyle.Render("Acompanhamento · exemplo fictício")
+	}
 	if m.journal != "" {
 		lines = append(lines, horizontalWindow("Retoma: azpipe resume "+m.journal, m.horizontal, m.width))
 	}
@@ -147,26 +157,47 @@ func (m executionModel) view() string {
 	if height == 0 {
 		height = defaultHeight
 	}
-	footer := shortcutBar(m.width, "pgup/pgdown linhas", "←/→ detalhe", "esc catálogo", "q sair sem cancelar runs")
+	footer := shortcutBar(width, "↑/↓ escolher run", "←/→ detalhe", "esc catálogo", "q sair")
+	if !m.queued {
+		footer = "Submissão em curso. Aguarda para voltar ou sair."
+	}
 	available := m.pageSize()
-	end := min(len(m.runs), m.offset+available)
-	for _, result := range m.runs[m.offset:end] {
+	start := m.offset / available * available
+	end := min(len(m.runs), start+available)
+	columns := []int{2, 18, max(1, width-26)}
+	lines = append(lines, "", catalogHeaderStyle.Render(tableCells(columns, "", "ESTADO", "PIPELINE")), "")
+	for index, result := range m.runs[start:end] {
 		name := pipelineDisplayName(result.Review.Selection.Pipeline, includeProject)
-		if result.Err != nil {
-			line := fmt.Sprintf("ERROR %s: %v", name, result.Err)
-			if result.Run.WebURL != "" {
-				line += " " + result.Run.WebURL
+		state := result.Run.State
+		switch state {
+		case "notStarted":
+			state = "Em fila"
+		case "inProgress":
+			state = "A correr"
+		case "completed":
+			state = result.Run.Result
+			switch state {
+			case "succeeded":
+				state = "Concluída"
+			case "failed":
+				state = "Falhou"
+			case "canceled":
+				state = "Cancelada"
+			case "partiallySucceeded":
+				state = "Sucesso parcial"
 			}
-			lines = append(lines, runLink(result.Run.WebURL, catalogWarningStyle.Render(horizontalWindow(line, m.horizontal, m.width))))
-			continue
 		}
-		line := fmt.Sprintf("%s %s", strings.ToUpper(result.Run.State), name)
-		if result.Run.Result != "" {
-			line += " " + result.Run.Result
+		if result.Run.ID == 0 {
+			state = "Sem ID confirmado"
 		}
-		if result.Run.WebURL != "" {
-			line += " " + result.Run.WebURL
+		if result.Err != nil {
+			state = "Erro"
 		}
+		marker := ""
+		if start+index == m.offset {
+			marker = ">"
+		}
+		line := tableCells(columns, marker, state, name)
 		style := runStyle
 		if result.Run.Result == "succeeded" {
 			style = successStyle
@@ -174,7 +205,27 @@ func (m executionModel) view() string {
 		if result.Run.Result == "failed" || result.Run.Result == "canceled" || result.Run.Result == "partiallySucceeded" {
 			style = catalogWarningStyle
 		}
-		lines = append(lines, runLink(result.Run.WebURL, style.Render(horizontalWindow(line, m.horizontal, m.width))))
+		lines = append(lines, runLink(result.Run.WebURL, style.Render(line)))
+		if height >= 28 {
+			lines = append(lines, "")
+		}
+	}
+	if len(m.runs) == 0 {
+		lines = append(lines, "Ainda sem resultados.")
+	}
+	if m.offset < len(m.runs) {
+		r := m.runs[m.offset]
+		detail := "Run sem URL confirmada."
+		if r.Run.WebURL != "" {
+			detail = r.Run.WebURL
+		}
+		if m.demo {
+			detail = "Lote de exemplo independente da selecção; não foi executado."
+		}
+		lines = append(lines, "", catalogHeaderStyle.Render("DETALHE DA RUN SELECCIONADA"), horizontalWindow(pipelineDisplayName(r.Review.Selection.Pipeline, includeProject), m.horizontal, width), runLink(r.Run.WebURL, horizontalWindow(detail, m.horizontal, width)))
+		if r.Err != nil {
+			lines = append(lines, horizontalWindow("Erro: "+r.Err.Error(), m.horizontal, width))
+		}
 	}
 	if m.err != nil {
 		lines = append(lines, catalogWarningStyle.Render(m.err.Error()))
@@ -188,7 +239,10 @@ func (m executionModel) view() string {
 	} else if !hasNonTerminalRun(m.runs) && m.queued {
 		status = "Acompanhamento terminado · sem runs conhecidas pendentes"
 	}
-	lines = append(lines, footer, catalogDetailStyle.Render(status))
+	lines = append(lines, "", catalogDetailStyle.Render(status), "", footer)
+	if !m.demo && m.queued {
+		lines = append(lines, "Sair não cancela as runs aceites.")
+	}
 	return strings.Join(lines, "\n")
 }
 
@@ -206,7 +260,19 @@ func (m executionModel) pageSize() int {
 	if height == 0 {
 		height = defaultHeight
 	}
-	prefix := 2
+	prefix := 15
+	for _, r := range m.runs {
+		if r.Run.ID == 0 || (r.Run.State == "completed" && r.Run.Result != "succeeded") {
+			prefix++
+			break
+		}
+	}
+	if m.offset < len(m.runs) && m.runs[m.offset].Err != nil {
+		prefix++
+	}
+	if !m.demo {
+		prefix++
+	}
 	if m.err != nil {
 		prefix++
 	}
@@ -220,5 +286,9 @@ func (m executionModel) pageSize() int {
 		prefix++
 	}
 	footer := shortcutBar(m.width, "pgup/pgdown linhas", "←/→ detalhe", "esc catálogo", "q sair sem cancelar runs")
-	return max(1, height-2-prefix-strings.Count(footer, "\n")-2)
+	space := height - prefix - strings.Count(footer, "\n")
+	if height >= 28 {
+		space /= 2
+	}
+	return max(1, space)
 }

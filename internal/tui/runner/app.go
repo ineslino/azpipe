@@ -117,19 +117,21 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.branchBrowser = nil
 		return m, nil
 	}
+	if size, ok := msg.(tea.WindowSizeMsg); ok {
+		m.height = size.Height
+		m.width = size.Width
+		m.context.width, m.context.height = max(1, size.Width-4), max(1, size.Height-2)
+		m.review.height = max(1, size.Height-2)
+		m.review.width = max(1, size.Width-4)
+		m.execution.height = max(1, size.Height-2)
+		m.execution.width = max(1, size.Width-4)
+		m.catalog.width, m.catalog.height = max(1, size.Width), max(1, size.Height-2)
+	}
 	if m.branchBrowser != nil {
 		updated, cmd := m.branchBrowser.Update(msg)
 		browser := updated.(BranchModel)
 		m.branchBrowser = &browser
 		return m, cmd
-	}
-	if size, ok := msg.(tea.WindowSizeMsg); ok {
-		m.height = size.Height
-		m.width = size.Width
-		m.review.height = max(1, size.Height-2)
-		m.review.width = max(1, size.Width-4)
-		m.execution.height = max(1, size.Height-2)
-		m.execution.width = max(1, size.Width-4)
 	}
 	if key, ok := msg.(tea.KeyMsg); ok && m.screen == ScreenExecution && !m.execution.queued {
 		if key.String() == "q" || key.Type == tea.KeyEsc || key.Type == tea.KeyCtrlC || key.Type == tea.KeyCtrlD {
@@ -350,6 +352,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.context, cmd = m.context.update(msg)
 		return m, cmd
 	case ScreenCatalog:
+		if m.catalog.showDetails {
+			updated, cmd := m.catalog.Update(msg)
+			m.catalog = updated.(CatalogModel)
+			return m, cmd
+		}
 		if key, ok := msg.(tea.KeyMsg); ok && m.catalog.input == inputNone {
 			if key.String() == "B" {
 				if m.demo {
@@ -427,12 +434,24 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.catalog.notice = "Corrige com a (acções), depois Enter para uma nova revisão."
 				return m, nil
 			}
+			if m.demo {
+				m.openLibrary("history")
+				return m.libraryUpdate(key)
+			}
 		}
 		var cmd tea.Cmd
 		m.review, cmd = m.review.update(msg)
 		return m, cmd
 	case ScreenExecution:
 		if key, ok := msg.(tea.KeyMsg); ok {
+			if key.String() == "down" {
+				m.execution.offset = min(max(0, len(m.execution.runs)-1), m.execution.offset+1)
+				m.execution.horizontal = 0
+			}
+			if key.String() == "up" {
+				m.execution.offset = max(0, m.execution.offset-1)
+				m.execution.horizontal = 0
+			}
 			if key.String() == "right" {
 				m.execution.horizontal += 20
 			}
@@ -492,16 +511,7 @@ func (m AppModel) View() string {
 		return section("LIGAÇÃO AO AZURE DEVOPS", view, m.width)
 	case ScreenCatalog:
 		catalog := m.catalog
-		banner := ""
-		if catalog.input == inputNone {
-			banner = brandWhiteStyle.Render("As tuas pipelines. ") + brandLimeStyle.Render("Um só terminal.") + "\n"
-			if m.height >= 32 && m.width >= 60 {
-				parts := strings.Split(welcomeBrand(), "\n")
-				banner = strings.Join(parts[2:9], "\n") + "\n"
-			}
-			catalog.height -= strings.Count(banner, "\n")
-		}
-		return banner + m.contextHeader() + catalog.View()
+		return m.contextHeader() + catalog.View()
 	case ScreenReview:
 		return m.contextHeader() + section("VALIDAÇÃO DO LOTE", m.review.view(), m.width)
 	case ScreenExecution:

@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/ineslino/azpipe/internal/azdo"
 	domainrunner "github.com/ineslino/azpipe/internal/runner"
 )
@@ -54,6 +55,8 @@ const (
 )
 
 type contextModel struct {
+	width, height  int
+	errorScroll    int
 	organization   textinput.Model
 	project        textinput.Model // retained for compatibility with the non-interactive bootstrap contract
 	projects       []azdo.Project
@@ -86,6 +89,16 @@ func newContextModel(defaults ContextDefaults) contextModel {
 func (m contextModel) update(msg tea.Msg) (contextModel, tea.Cmd) {
 	key, isKey := msg.(tea.KeyMsg)
 	if isKey {
+		if m.err != "" {
+			if key.String() == "pgdown" {
+				m.errorScroll++
+				return m, nil
+			}
+			if key.String() == "pgup" {
+				m.errorScroll = max(0, m.errorScroll-1)
+				return m, nil
+			}
+		}
 		if key.String() == "ctrl+c" || key.String() == "ctrl+d" {
 			return m, tea.Quit
 		}
@@ -199,8 +212,13 @@ func (m contextModel) selectedProjectLabel() string {
 }
 
 func (m contextModel) view() string {
+	width := m.width
+	if width == 0 {
+		width = defaultWidth - 4
+	}
+	m.organization.Width = max(8, width-15)
 	lines := []string{
-		welcomeBrand(),
+		wordmarkStyle.Render("AZPIPE"),
 		"",
 		catalogTitleStyle.Render("Ligar ao Azure DevOps"),
 	}
@@ -218,8 +236,21 @@ func (m contextModel) view() string {
 			catalogDetailStyle.Render(truncateWidth("Organização: "+m.organization.Value(), defaultWidth)),
 			catalogTitleStyle.Render(fmt.Sprintf("Projectos disponíveis · %d", len(m.projects))),
 		)
-		start := max(0, m.projectCursor-allProjectsCapacity+1)
-		end := min(len(m.projects)+1, start+allProjectsCapacity)
+		selected := "Seleccionado: " + m.selectedProjectLabel()
+		selectedLines := strings.Count(ansi.Wrap(selected, width, ""), "\n") + 1
+		extra := selectedLines - 1
+		if m.err != "" {
+			extra += 5
+		}
+		if m.loading {
+			extra++
+		}
+		capacity := allProjectsCapacity
+		if m.height > 0 {
+			capacity = max(1, min(capacity, m.height-14-extra))
+		}
+		start := max(0, m.projectCursor-capacity+1)
+		end := min(len(m.projects)+1, start+capacity)
 		for index := start; index < end; index++ {
 			label := allProjectsLabel
 			if index > 0 {
@@ -232,22 +263,22 @@ func (m contextModel) view() string {
 			} else {
 				line = catalogDetailStyle.Render(line)
 			}
-			lines = append(lines, truncateWidth(line, defaultWidth))
+			lines = append(lines, truncateWidth(line, width))
 		}
-		lines = append(lines, catalogDetailStyle.Render("Seleccionado: "+m.selectedProjectLabel()))
+		lines = append(lines, catalogDetailStyle.Render(selected))
 		if m.loading {
 			lines = append(lines, catalogDetailStyle.Render("A carregar pipelines do âmbito seleccionado..."))
 		}
 	}
 	if m.err != "" {
-		lines = append(lines, catalogWarningStyle.Render(truncateWidth(m.err, defaultWidth)))
+		lines = append(lines, "", catalogWarningStyle.Render(textPage(m.err, width, m.errorScroll, 3)), "PgUp/PgDn: percorrer erro completo")
 	}
 	if len(m.projects) > 0 {
-		lines = append(lines, "", shortcutBar(defaultWidth, "↑/↓ escolher projecto", "enter abrir catálogo", "esc mudar organização"))
+		lines = append(lines, "", shortcutBar(width, "enter abrir catálogo"), shortcutBar(width, "↑/↓ escolher projecto", "esc mudar organização"))
 	} else {
-		lines = append(lines, "", shortcutBar(defaultWidth, "enter ligar", "esc sair"))
+		lines = append(lines, "", shortcutBar(width, "enter ligar", "esc sair"))
 	}
-	return strings.Join(lines, "\n")
+	return ansi.Wrap(strings.Join(lines, "\n"), width, "")
 }
 
 func loadProjects(factory ClientFactory, organization string, token operationToken) tea.Cmd {

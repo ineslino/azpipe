@@ -23,7 +23,7 @@ Para eliminar pela CLI, repete o comando de revisão com `--sha 'SHA_COMPLETO_DA
 
 Salvaguardas:
 
-Quando aberta com `B`, Esc ou `q` regressa ao catálogo. Durante processamento, Esc, `q` ou Ctrl+C pede cancelamento e aguarda os resultados: impede o início das restantes eliminações, mas não desfaz pedidos já aceites. Uma operação em curso pode terminar com resultado incerto.
+Quando aberta com `B`, Esc regressa ao catálogo a partir da lista; `q` sai da aplicação. Na revisão, Esc volta à selecção e Ctrl+C sai. O campo de confirmação indica antecipadamente a palavra `ELIMINAR`, a quantidade de branches e o repositório. Durante processamento, Esc, `q` ou Ctrl+C pede cancelamento e aguarda os resultados: impede o início das restantes eliminações, mas não desfaz pedidos já aceites. Uma operação em curso pode terminar com resultado incerto.
 
 - Bloqueia a branch default, `main`, `master`, `develop`, refs bloqueadas, políticas activas aplicáveis e PRs activos que usem a branch como origem ou destino.
 - Falhas ao consultar protecções impedem a eliminação. Cada branch é novamente revista antes de escrever; o pedido usa o SHA revisto para o servidor rejeitar alterações concorrentes.
@@ -156,7 +156,8 @@ rows. Shorter terminals keep the compact identity and description to preserve ro
 | `h` | Browse previous batches in this context and resume monitoring without submitting runs |
 | `c` | Return to the project selector and change project scope |
 | `Enter` in a field | Finish editing and retain the filter or branch |
-| `PgUp` / `PgDn` | Page through review and execution rows; arrows select a review item and left/right scroll its vertical detail |
+| `PgUp` / `PgDn` | Page through review and execution rows; arrows select an item. In login/profile errors, page through the full message |
+| `d` | Open complete pipeline metadata; arrows scroll and Esc returns |
 | `b` | Edit the global branch, initially `main` |
 | `Enter` | Review the selection |
 | `Esc` | Leave the current input or return to the catalog without losing the selection |
@@ -255,6 +256,10 @@ requests also use a maximum concurrency of four. If one queue request fails, alr
 accepted runs remain active and are shown alongside the failure; the command returns
 a non-zero exit status after monitoring the result. Leaving the final screen stops
 local monitoring only and never cancels a remote run.
+
+While queue requests are being submitted, the TUI explicitly asks you to wait;
+Esc, q and Ctrl+C do not leave that stage. Once submission finishes, the usual
+navigation and exit controls become available again.
 
 Concurrency limits HTTP requests, not active runs in Azure DevOps. A completed
 failed/canceled run or stopping monitoring before completion produces a non-zero

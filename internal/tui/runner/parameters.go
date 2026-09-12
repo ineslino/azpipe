@@ -230,7 +230,7 @@ func (e parameterEditor) view(width, height int, name string) string {
 }
 
 func (e parameterEditor) schemaView(width, height int, name string) string {
-	lines := []string{catalogTitleStyle.Render(truncateWidth("Parâmetros · "+name, width)), catalogDetailStyle.Render(truncateWidth(fmt.Sprintf("YAML · SHA %s · definição %d", e.schema.Commit, e.schema.DefinitionVersion), width)), catalogDetailStyle.Render("Sem segredos. Defaults são omitidos do pedido."), ""}
+	lines := []string{catalogTitleStyle.Render(truncateWidth("Configurar · "+name, width)), "", "Altera os valores necessários. Ctrl+S aplica à selecção.", "Não introduzas segredos.", ""}
 	count := max(1, (height-12)/3)
 	start := max(0, e.focus/2-count+1)
 	for i := start; i < min(len(e.rows), start+count); i++ {
@@ -239,10 +239,10 @@ func (e parameterEditor) schemaView(width, height int, name string) string {
 		row.value.Width = max(8, width-10)
 		status := "obrigatório"
 		if p.HasDefault {
-			status = "default"
+			status = "predefinido pela pipeline"
 		}
 		if !e.useDefault[i] {
-			status = "override"
+			status = "valor personalizado"
 		}
 		label := fmt.Sprintf("%s [%s · %s]", p.DisplayName, p.Type, status)
 		style := catalogDetailStyle
@@ -264,6 +264,6 @@ func (e parameterEditor) schemaView(width, height int, name string) string {
 	if e.warning != "" {
 		lines = append(lines, catalogWarningStyle.Render(truncateWidth(e.warning, width)))
 	}
-	lines = append(lines, shortcutBar(width, "tab próximo", "←/→ escolher opção", "ctrl+r default", "ctrl+s guardar", "esc descartar"))
+	lines = append(lines, "", shortcutBar(width, "tab próximo", "←/→ escolher opção", "ctrl+r repor predefinido", "ctrl+s aplicar", "esc descartar"))
 	return strings.Join(lines, "\n")
 }

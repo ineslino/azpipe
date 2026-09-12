@@ -1,11 +1,19 @@
 package runner
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
+
+func quantity(n int, singular, plural string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, singular)
+	}
+	return fmt.Sprintf("%d %s", n, plural)
+}
 
 var (
 	catalogTitleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))
@@ -90,6 +98,13 @@ func tableCells(widths []int, values ...string) string {
 		cells[i] = text + strings.Repeat(" ", max(0, width-lipgloss.Width(text)))
 	}
 	return strings.Join(cells, " │ ")
+}
+
+// textPage keeps wrapped diagnostics readable without losing the recovery footer.
+func textPage(value string, width, offset, count int) string {
+	lines := strings.Split(ansi.Wrap(value, max(1, width), ""), "\n")
+	start := min(max(0, offset), max(0, len(lines)-count))
+	return strings.Join(lines[start:min(len(lines), start+count)], "\n")
 }
 
 // Keep labels as well as colour, including in terminals with NO_COLOR.

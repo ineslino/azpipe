@@ -13,12 +13,13 @@ import (
 )
 
 type libraryModel struct {
-	kind     string
-	cursor   int
-	name     textinput.Model
-	profiles []domain.Profile
-	journals []*domain.Journal
-	err      string
+	kind        string
+	cursor      int
+	name        textinput.Model
+	profiles    []domain.Profile
+	journals    []*domain.Journal
+	err         string
+	errorScroll int
 }
 
 func (m *AppModel) openLibrary(kind string) {
@@ -64,6 +65,16 @@ func (m AppModel) libraryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return m, nil
+	}
+	if l.err != "" {
+		if key.String() == "pgdown" {
+			l.errorScroll++
+			return m, nil
+		}
+		if key.String() == "pgup" {
+			l.errorScroll = max(0, l.errorScroll-1)
+			return m, nil
+		}
 	}
 	if key.Type == tea.KeyEsc {
 		m.library = nil
@@ -184,14 +195,14 @@ func (l libraryModel) view(width, height int) string {
 			line := ""
 			if l.kind == "profiles" {
 				p := l.profiles[i]
-				line = fmt.Sprintf("%s · %d pipelines", p.Name, len(p.Selections))
+				line = p.Name + " · " + quantity(len(p.Selections), "pipeline", "pipelines")
 			} else {
 				j := l.journals[i]
 				name := filepath.Base(j.Path())
 				if j.Path() == "" {
 					name = "lote de demonstração"
 				}
-				line = fmt.Sprintf("%s · %d runs", name, len(j.Runs))
+				line = name + " · " + quantity(len(j.Runs), "run", "runs")
 			}
 			style := catalogDetailStyle
 			marker := "  "
@@ -211,8 +222,15 @@ func (l libraryModel) view(width, height int) string {
 		}
 	}
 	if l.err != "" {
-		lines = append(lines, catalogWarningStyle.Render(truncateWidth(l.err, width)))
+		lines = append(lines, catalogWarningStyle.Render(textPage(l.err, width, l.errorScroll, 3)), "PgUp/PgDn: percorrer erro completo")
 	}
-	lines = append(lines, "", shortcutBar(width, "↑/↓ escolher", "enter confirmar", "esc voltar"))
+	action := "enter carregar selecção"
+	if l.kind == "save" {
+		action = "enter guardar perfil"
+	}
+	if l.kind == "history" {
+		action = "enter acompanhar lote"
+	}
+	lines = append(lines, "", shortcutBar(width, "↑/↓ escolher", action, "esc voltar"))
 	return strings.Join(lines, "\n")
 }

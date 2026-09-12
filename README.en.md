@@ -16,7 +16,9 @@ go run . demo
 
 The demo uses fictional data, without credentials, Azure DevOps calls or profile writes to disk. Follow the [visual walkthrough](docs/demo.md).
 
-![Actual TUI catalog rendered with fictional data](docs/assets/catalog.svg)
+![Animated demo: pipelines, PLAN, review and branch management with fictional data](docs/assets/azpipe-demo.gif)
+
+[Download the shareable MP4 demo](docs/assets/azpipe-demo.mp4) · 39 seconds, silent, Portuguese captions. Actual offline TUI model views with a simplified palette; static history, no remote runs.
 
 ## Capabilities
 

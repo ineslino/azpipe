@@ -46,11 +46,8 @@ func TestContextFooterAndBannerFit(t *testing.T) {
 		m := NewDemoApp()
 		u, _ := m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 		m = u.(AppModel)
-		if !strings.Contains(m.View(), "Um só terminal.") {
-			t.Fatal("missing catalog description")
-		}
-		if size[1] >= 32 && !strings.Contains(m.View(), "█") {
-			t.Fatal("missing large banner")
+		if !strings.Contains(m.View(), "AZPIPE") || strings.Contains(m.View(), "█") {
+			t.Fatal("catalog must retain compact branding")
 		}
 		if strings.Contains(m.catalog.helpView(), "guardar perfil") {
 			t.Fatal("secondary action leaked into footer")

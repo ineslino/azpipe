@@ -43,6 +43,7 @@ type BranchModel struct {
 	detailOffset                  int
 	stage                         string
 	busy                          bool
+	showHelp                      bool
 	err                           string
 	filter, creator, confirmation textinput.Model
 	input                         string
@@ -124,6 +125,24 @@ func (m BranchModel) visible() []azdo.Branch {
 }
 
 func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if key, ok := msg.(tea.KeyMsg); ok && m.showHelp && !m.busy && (key.Type == tea.KeyCtrlC || key.Type == tea.KeyCtrlD || key.String() == "q") {
+		if m.cancel != nil {
+			m.cancel()
+		}
+		return m, tea.Quit
+	}
+	if key, ok := msg.(tea.KeyMsg); ok && !m.busy && m.input == "" {
+		if key.String() == "?" {
+			m.showHelp = !m.showHelp
+			return m, nil
+		}
+		if m.showHelp {
+			if key.Type == tea.KeyEsc {
+				m.showHelp = false
+			}
+			return m, nil
+		}
+	}
 	switch v := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = v.Width
@@ -274,7 +293,12 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		switch v.String() {
-		case "q", "esc":
+		case "q":
+			if m.cancel != nil {
+				m.cancel()
+			}
+			return m, tea.Quit
+		case "esc":
 			if m.cancel != nil {
 				m.cancel()
 			}
@@ -425,17 +449,8 @@ func branchTableLayout(width int, stage string) (int, []int, []string) {
 		}
 		return inner, []int{4, branchWidth, creatorWidth}, []string{"SEL", "BRANCH", "CRIADOR"}
 	case "review":
-		if inner < 34 {
-			return inner, []int{max(1, inner-3), 3}, []string{"BRANCH", "ESTADO"}
-		}
-		statusWidth := min(22, max(12, inner/3))
-		shaWidth := min(16, max(8, inner/5))
-		branchWidth := inner - 6 - statusWidth - shaWidth
-		if branchWidth < 14 {
-			shaWidth = max(6, inner-6-statusWidth-14)
-			branchWidth = inner - 6 - statusWidth - shaWidth
-		}
-		return inner, []int{branchWidth, shaWidth, statusWidth}, []string{"BRANCH", "SHA", "ESTADO"}
+		statusWidth := min(18, max(8, inner/3))
+		return inner, []int{max(1, inner-3-statusWidth), statusWidth}, []string{"BRANCH", "ESTADO"}
 	case "repos":
 		if inner < 27 {
 			return inner, []int{max(1, inner-3), 3}, []string{"REPOSITÓRIO", "DEFAULT"}
@@ -507,6 +522,9 @@ func branchResultCells(result string) []string {
 
 func (m BranchModel) View() string {
 	frameWidth := max(10, m.width)
+	if m.showHelp {
+		return section("BRANCHES · AJUDA", "\n/   Filtrar pelo nome\nu   Filtrar pelo criador\nc   Limpar filtros\n\nr   Actualizar\nb   Escolher repositório\n←/→ Percorrer detalhe e erros\n\nEsc Voltar\n?   Fechar ajuda", frameWidth)
+	}
 	inner, widths, headers := branchTableLayout(frameWidth, m.stage)
 	lines := []string{catalogTitleStyle.Render(truncateWidth("BRANCHES · "+m.project+" / "+m.repo.Name, frameWidth)), ""}
 	var tableRows [][]string
@@ -527,7 +545,7 @@ func (m BranchModel) View() string {
 			detail = fmt.Sprintf("Repositório: %s\nBranch default: %s", repo.Name, repo.DefaultBranch)
 		}
 	case "list":
-		lines = append(lines, m.filter.View(), m.creator.View(), "")
+		lines = append(lines, "Selecciona com espaço. Enter revê; ainda não elimina.", m.filter.View(), m.creator.View(), "")
 		tableTitle = "BRANCHES"
 		visible := m.visible()
 		total = len(visible)
@@ -544,15 +562,15 @@ func (m BranchModel) View() string {
 		}
 		if m.cursor < total {
 			b := visible[m.cursor]
-			detail = fmt.Sprintf("Branch: %s\nSHA: %s\nCriador: %s\nEstado: %s", b.Name, b.ObjectID, branchCreator(b), branchState(b))
+			detail = fmt.Sprintf("Branch: %s\nEstado: %s\nCriador: %s\nSHA: %s", b.Name, branchState(b), branchCreator(b), b.ObjectID)
 		}
-		help = "espaço seleccionar · / nome · u criador · c limpar · enter rever · r actualizar · b repos · q sair"
+		help = "espaço seleccionar · enter rever · ? mais acções · q sair"
 	case "review":
 		lines = append(lines, "REVER ELIMINAÇÃO · branches remotas", "Confirma o repositório, os nomes e os SHAs.", "Isto não confirma que os commits já foram integrados.", "")
 		tableTitle = "REVISÃO"
 		total = len(m.reviewed)
 		for _, b := range m.reviewed {
-			status := "sem bloqueios detectados"
+			status := "Sem bloqueios"
 			if b.Blocked != "" {
 				status = "BLOQUEADA: " + b.Blocked
 			}
@@ -564,7 +582,7 @@ func (m BranchModel) View() string {
 		}
 		if m.cursor < total {
 			b := m.reviewed[m.cursor]
-			detail = fmt.Sprintf("Branch: %s\nSHA: %s\nCriador: %s\nEstado: %s", b.Name, b.ObjectID, branchCreator(b), branchState(b))
+			detail = fmt.Sprintf("SHA: %s\nBranch: %s\nEstado: %s\nCriador: %s", b.ObjectID, b.Name, branchState(b), branchCreator(b))
 		}
 		help = "↑/↓ rever lista · esc voltar · enter confirmar"
 	case "results":
@@ -579,7 +597,17 @@ func (m BranchModel) View() string {
 		}
 		help = "↑/↓ navegar · r actualizar branches · b repos · q sair"
 	}
-	capacity := max(1, m.height-len(lines)-16)
+	reserve := 16
+	if m.stage == "review" && !m.demo {
+		reserve += 2
+	}
+	if m.err != "" {
+		reserve += 3
+	}
+	capacity := max(1, m.height-len(lines)-reserve)
+	if m.height >= 30 {
+		capacity = max(1, capacity/2)
+	}
 	start := max(0, m.cursor-capacity+1)
 	if start > total {
 		start = max(0, total-capacity)
@@ -594,11 +622,29 @@ func (m BranchModel) View() string {
 		}
 	}
 	table := renderBranchTable(inner, widths, headers, tableRows[start:end], m.cursor-start, selectedRows)
+	if m.height >= 30 {
+		rows := strings.Split(table, "\n")
+		spaced := []string{rows[0], ""}
+		for _, row := range rows[1:] {
+			spaced = append(spaced, row, "")
+		}
+		table = strings.Join(spaced, "\n")
+	}
 	if total == 0 {
 		table = renderBranchTable(inner, widths, headers, nil, -1, nil)
 	}
 	lines = append(lines, strings.Split(section(fmt.Sprintf("%s %d–%d / %d", tableTitle, min(start+1, total), end, total), table, frameWidth), "\n")...)
-	lines = append(lines, "", fmt.Sprintf("%d/%d · %d seleccionadas (inclui ocultas pelo filtro)", min(m.cursor+1, total), total, len(m.selected)))
+	hidden := 0
+	if m.stage == "list" {
+		visibleSelected := 0
+		for _, b := range m.visible() {
+			if m.selected[b.Name] {
+				visibleSelected++
+			}
+		}
+		hidden = len(m.selected) - visibleSelected
+	}
+	lines = append(lines, "", fmt.Sprintf("%d/%d · %s (%s pelo filtro)", min(m.cursor+1, total), total, quantity(len(m.selected), "seleccionada", "seleccionadas"), quantity(hidden, "oculta", "ocultas")))
 	if detail != "" {
 		wrapped := strings.Split(ansi.Wrap(detail, max(1, frameWidth-8), ""), "\n")
 		offset := min(m.detailOffset, max(0, len(wrapped)-4))
@@ -606,16 +652,27 @@ func (m BranchModel) View() string {
 		lines = append(lines, strings.Split(section("DETALHE · ←/→ deslocar", strings.Join(wrapped, "\n"), frameWidth), "\n")...)
 	}
 	if m.stage == "review" {
-		lines = append(lines, m.confirmation.View())
+		if m.demo {
+			lines = append(lines, "Exemplo de revisão: Esc volta à selecção. Eliminação indisponível.")
+		} else {
+			lines = append(lines, fmt.Sprintf("Vai eliminar %s de %s / %s.", quantity(len(m.reviewed), "branch", "branches"), m.project, m.repo.Name), "Escreve ELIMINAR e prime Enter para eliminar as branches remotas.", m.confirmation.View())
+		}
 	}
 	if m.busy {
 		lines = append(lines, "A processar… Esc cancela o restante lote.")
 	}
 	if m.err != "" {
-		lines = append(lines, catalogWarningStyle.Render(ansi.Truncate(m.err, inner, "…")))
+		lines = append(lines, "", catalogWarningStyle.Render(horizontalWindow("Erro: "+m.err, m.detailOffset*20, inner)), "←/→ percorrer erro completo")
 	}
 	if m.demo {
 		lines = append(lines, "DEMO OFFLINE · não elimina branches")
+	}
+	if m.stage == "review" && m.demo {
+		help = "↑/↓ rever lista · esc voltar à selecção · ctrl+c sair"
+	} else if m.input != "" {
+		help = "A filtrar branches · enter terminar pesquisa · esc voltar à lista"
+	} else if m.stage != "review" && m.returnToCatalog {
+		help += " · esc voltar ao catálogo"
 	}
 	lines = append(lines, strings.Split(ansi.Wrap(help, inner, ""), "\n")...)
 	for i, line := range lines {

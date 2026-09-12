@@ -16,7 +16,9 @@ go run . demo
 
 A demo usa dados fictícios, sem credenciais, chamadas ao Azure DevOps ou escrita de perfis no disco. Consulta o [guião visual](docs/demo.md).
 
-![Catálogo real da TUI renderizado com dados fictícios](docs/assets/catalog.svg)
+![Demo animada: pipelines, PLAN, revisão e gestão de branches com dados fictícios](docs/assets/azpipe-demo.gif)
+
+[Descarregar a demo em MP4 para partilhar](docs/assets/azpipe-demo.mp4) · 39 segundos, sem som. Ecrãs reais do modelo TUI offline, com paleta simplificada; histórico estático, sem execuções remotas.
 
 ## O que faz
 
@@ -83,6 +85,7 @@ Usa `AZDO_PAT` injectado pelo teu mecanismo de credenciais e `AZDO_ORG` para o c
 | `a` / `?` | Menu de acções e ajuda, com descrições e motivos de indisponibilidade |
 | Setas / `j` / `k` | Navegar |
 | `/` / espaço | Filtrar / seleccionar |
+| `d` | Detalhe completo da pipeline; setas percorrem e Esc regressa |
 | `m` / `P` / `R` | Alternar modo / PLAN para selecção / RUN para selecção |
 | `e` / `b` | Parâmetros tipados / branch |
 | `s` / `l` / `h` | Guardar perfil / carregar perfil / histórico |

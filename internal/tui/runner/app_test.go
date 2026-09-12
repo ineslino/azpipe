@@ -379,16 +379,21 @@ func TestExecution_RefreshesNonTerminalRunsAndShowsPartialFailure(t *testing.T) 
 	model.startOperation(runsOperationTarget(model.execution.runs))
 
 	before := model.View()
-	if !strings.Contains(before, "https://example.test/runs/9001") || !strings.Contains(before, "ERROR orders deploy: permission denied") {
+	if !strings.Contains(before, "https://example.test/runs/9001") || !strings.Contains(before, "sem ID confirmado") {
 		t.Fatalf("execution must expose URL and partial queue failure:\n%s", before)
 	}
+	model, _ = pressApp(t, model, "down")
+	if !strings.Contains(model.View(), "orders deploy") || !strings.Contains(model.View(), "Erro: permission denied") {
+		t.Fatalf("selected failed run must expose its error:\n%s", model.View())
+	}
+	model, _ = pressApp(t, model, "up")
 	updated, cmd := model.Update(refreshTickMsg{token: model.active})
 	model = updated.(AppModel)
 	model, next := runAppCmd(t, model, cmd)
 	if next != nil {
 		t.Fatal("completed runs must not schedule another refresh")
 	}
-	if !strings.Contains(model.View(), "COMPLETED billing deploy succeeded") {
+	if !strings.Contains(model.View(), "Concluída") || !strings.Contains(model.View(), "billing deploy") {
 		t.Fatalf("refreshed terminal run not rendered:\n%s", model.View())
 	}
 }
@@ -470,7 +475,7 @@ func TestExecution_RetriesAfterTransientRefreshErrorUntilCompleted(t *testing.T)
 	updated, refreshCmd = model.Update(refreshTickMsg{token: model.active})
 	model = updated.(AppModel)
 	model, next := runAppCmd(t, model, refreshCmd)
-	if next != nil || !strings.Contains(model.View(), "COMPLETED billing deploy succeeded") {
+	if next != nil || !strings.Contains(model.View(), "Concluída") || model.execution.runs[0].Run.Result != "succeeded" {
 		t.Fatalf("retry did not reach terminal run:\n%s", model.View())
 	}
 }

@@ -37,6 +37,8 @@ type CatalogReviewMsg struct {
 
 // CatalogModel lets an operator search and select pipelines before review.
 type CatalogModel struct {
+	showDetails    bool
+	detailScroll   int
 	pipelines      []azdo.Pipeline
 	visible        []azdo.Pipeline
 	selected       map[string]domainrunner.Mode
@@ -122,6 +124,22 @@ func (m CatalogModel) branchFor(pipeline azdo.Pipeline) string {
 
 // Update applies keyboard input and terminal dimensions to the catalog.
 func (m CatalogModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if key, ok := msg.(tea.KeyMsg); ok && m.showDetails {
+		switch key.String() {
+		case "esc", "d":
+			m.showDetails = false
+		case "down", "pgdown":
+			m.detailScroll++
+		case "up", "pgup":
+			m.detailScroll = max(0, m.detailScroll-1)
+		}
+		return m, nil
+	}
+	if key, ok := msg.(tea.KeyMsg); ok && key.String() == "d" && m.input == inputNone {
+		m.showDetails = true
+		m.detailScroll = 0
+		return m, nil
+	}
 	switch typed := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = max(1, typed.Width)
@@ -340,6 +358,11 @@ func (m CatalogModel) active() (azdo.Pipeline, bool) {
 
 // View renders compact rows and reserves a detail line for the active pipeline.
 func (m CatalogModel) View() string {
+	if m.showDetails {
+		p, _ := m.active()
+		detail := fmt.Sprintf("Pipeline: %s\n\nProjecto: %s\nRepositório: %s\nPasta: %s\nTags: %s\n\n%s", p.Name, p.Project, p.RepoName, p.Folder, strings.Join(p.Tags, ", "), p.MetadataWarning)
+		return section("DETALHE DA PIPELINE", textPage(detail, m.width-4, m.detailScroll, max(1, m.height-6))+"\n\n↑/↓ percorrer · esc voltar", m.width)
+	}
 	if m.input == inputParameterForm {
 		pipeline, _ := m.active()
 		return section("CONFIGURAR PARÂMETROS", m.editor.view(max(1, m.width-4), max(1, m.height-2), pipeline.Name), m.width)
@@ -411,7 +434,7 @@ func (m CatalogModel) View() string {
 		}
 		rows = append(rows, row)
 	}
-	for len(rows) < m.catalogCapacity()+1 {
+	for len(rows) < min(3, m.catalogCapacity())+1 {
 		rows = append(rows, "")
 	}
 	lines = append(lines, section(fmt.Sprintf("PIPELINES %d–%d / %d", min(start+1, len(m.visible)), end, len(m.visible)), strings.Join(rows, "\n"), m.width))
@@ -421,7 +444,10 @@ func (m CatalogModel) View() string {
 		if pipeline.PlanContract != nil {
 			capability = "PLAN disponível por contrato"
 		}
-		detail = catalogDetailStyle.Render(strings.TrimSpace(m.pipelineDetail(pipeline))) + "\n" + planStyle.Render(capability) + catalogDetailStyle.Render(fmt.Sprintf(" · %d parâmetros", len(m.parameters[domainrunner.PipelineKey(pipeline)])))
+		if pipeline.MetadataWarning != "" {
+			capability = "Metadados incompletos · d para consultar aviso"
+		}
+		detail = catalogDetailStyle.Render("Repositório: "+pipeline.RepoName) + "\n" + planStyle.Render(capability) + catalogDetailStyle.Render(" · "+quantity(len(m.parameters[domainrunner.PipelineKey(pipeline)]), "parâmetro", "parâmetros"))
 	}
 	lines = append(lines, section("DETALHE DA PIPELINE ACTIVA", detail, m.width))
 	if m.input == inputBranch {
@@ -468,24 +494,42 @@ func (m CatalogModel) catalogCapacity() int {
 }
 
 func (m CatalogModel) helpView() string {
+	if m.input == inputSearch {
+		return shortcutBar(max(1, m.width-4), "enter terminar pesquisa", "esc voltar à lista")
+	}
 	if m.input != inputNone {
 		return shortcutBar(max(1, m.width-4), "enter guardar e voltar à lista", "esc cancelar edição")
 	}
 	items := []string{"espaço seleccionar", "/ procurar"}
 	if len(m.selected) > 0 {
-		items = []string{fmt.Sprintf("enter rever %d pipelines", len(m.selected)), "espaço seleccionar"}
+		items = []string{"enter rever " + quantity(len(m.selected), "pipeline", "pipelines"), "espaço seleccionar"}
+		if p, ok := m.active(); ok {
+			items = append(items, "e configurar")
+			if _, selected := m.selected[domainrunner.PipelineKey(p)]; selected && p.PlanContract != nil {
+				items = append(items, "m RUN/PLAN")
+			}
+		}
 	}
-	return shortcutBar(max(1, m.width-4), append(items, "a acções", "? ajuda", "c projecto", "q sair")...)
+	return shortcutBar(max(1, m.width-4), items[0]) + "\n" + shortcutBar(max(1, m.width-4), append(items[1:], "d detalhe", "a acções", "q sair")...)
 }
 
 func (m CatalogModel) nextStep() string {
+	if m.input == inputSearch {
+		return "A filtrar pipelines. Enter termina a pesquisa."
+	}
 	if len(m.visible) == 0 {
 		return "Sem resultados. Altera a pesquisa com /."
 	}
 	if len(m.selected) == 0 {
 		return "Selecciona as pipelines que queres executar."
 	}
-	return fmt.Sprintf("%d seleccionadas. Enter para rever antes de continuar.", len(m.selected))
+	visibleSelected := 0
+	for _, p := range m.visible {
+		if _, ok := m.selected[domainrunner.PipelineKey(p)]; ok {
+			visibleSelected++
+		}
+	}
+	return fmt.Sprintf("%s (%s). Enter revê; ainda não executa.", quantity(len(m.selected), "seleccionada", "seleccionadas"), quantity(len(m.selected)-visibleSelected, "oculta", "ocultas"))
 }
 
 func (m CatalogModel) pipelineRow(pipeline azdo.Pipeline, active bool) string {

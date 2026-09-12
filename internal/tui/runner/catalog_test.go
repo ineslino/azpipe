@@ -159,6 +159,7 @@ func TestCatalogEnterWithSelection_ProducesReviewMessage(t *testing.T) {
 func TestCatalogView_RendersProgressiveDetailOnlyForActivePipeline(t *testing.T) {
 	model := catalogFixture()
 	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeyDown})
+	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
 
 	view := model.View()
 	for _, detail := range []string{"orders-api", "/platform/orders", "owner:orders"} {

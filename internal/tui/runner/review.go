@@ -164,7 +164,10 @@ func (m reviewModel) view() string {
 		columns = []int{2, 8, 4, 5, 12, max(1, width-46)}
 		headers = []string{"", "ESTADO", "MODO", "ID", "PROJECTO", "PIPELINE"}
 	}
-	lines := []string{catalogTitleStyle.Render(fmt.Sprintf("Revisão · %d pipelines · %d prontas · %d bloqueadas", len(m.reviews), ready, blocked)), catalogHeaderStyle.Width(width).Render(tableCells(columns, headers...))}
+	lines := []string{catalogTitleStyle.Render(fmt.Sprintf("Revisão · %s · %s · %s", quantity(len(m.reviews), "pipeline", "pipelines"), quantity(ready, "pronta", "prontas"), quantity(blocked, "bloqueada", "bloqueadas"))), catalogHeaderStyle.Width(width).Render(tableCells(columns, headers...))}
+	if m.demo {
+		lines[0] = catalogTitleStyle.Render(fmt.Sprintf("Revisão de exemplo · %s · sem execução remota", quantity(len(m.reviews), "pipeline", "pipelines")))
+	}
 	if height >= 28 {
 		lines = []string{"", lines[0], "", lines[1]}
 	}
@@ -204,7 +207,7 @@ func (m reviewModel) view() string {
 		if request.PipelineID == 0 {
 			request = r.Selection.Request()
 		}
-		detail := fmt.Sprintf("Modo: %s · Branch: %s\nPARÂMETROS ENVIADOS: %s\nDefaults não enviados: definidos pela pipeline\nSHA: %s\nDefinição: %d", r.Selection.Mode, request.Branch, formatParameters(request.Parameters), request.Commit, request.DefinitionVersion)
+		detail := fmt.Sprintf("Modo: %s\nBranch: %s\nParâmetros enviados: %s\n\nSHA: %s\nDefinição: %d\nValores predefinidos: definidos pela pipeline", r.Selection.Mode, request.Branch, formatParameters(request.Parameters), request.Commit, request.DefinitionVersion)
 		if r.Err != nil {
 			detail = "Bloqueio: " + r.Err.Error() + "\n" + detail
 		}
@@ -219,13 +222,11 @@ func (m reviewModel) view() string {
 		}
 		lines = append(lines, catalogDetailStyle.Render(fmt.Sprintf("Detalhe %d–%d/%d · ←/→ deslocar", scroll+1, min(len(wrapped), scroll+5), len(wrapped))))
 	}
-	for len(lines) < height-7 {
-		lines = append(lines, "")
-	}
+	lines = append(lines, "")
 	if m.demo {
-		lines = append(lines, catalogDetailStyle.Render("Demo offline: nenhuma pipeline será executada."))
+		lines = append(lines, catalogDetailStyle.Render("Demo offline: nenhuma pipeline será executada."), shortcutBar(width, "enter ver exemplo de acompanhamento (simulação)"))
 	} else if m.canExecute() {
-		lines = append(lines, runStyle.Render(fmt.Sprintf("Vai lançar %d pipelines. Escreva EXECUTAR para confirmar.", len(m.reviews))), m.confirmation.View())
+		lines = append(lines, runStyle.Render(fmt.Sprintf("Vai lançar %s. Escreve EXECUTAR para confirmar.", quantity(len(m.reviews), "pipeline", "pipelines"))), m.confirmation.View())
 	} else {
 		if blocked > 0 {
 			lines = append(lines, catalogWarningStyle.Render("Escolhe uma pipeline com erro. Enter volta à lista para corrigir."))

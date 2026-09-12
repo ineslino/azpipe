@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	domainrunner "github.com/ineslino/azpipe/internal/runner"
 )
 
@@ -92,10 +93,10 @@ func (m AppModel) updateActions(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m AppModel) actionsView() string {
 	items := m.catalogActions()
 	index := *m.actions
-	capacity := max(1, m.height-11)
+	capacity := max(1, (m.height-13)/2)
 	start := max(0, index-capacity+1)
 	end := min(len(items), start+capacity)
-	lines := []string{fmt.Sprintf("%d seleccionadas · escolhe com ↑/↓ e Enter", len(m.catalog.selected))}
+	lines := []string{quantity(len(m.catalog.selected), "seleccionada", "seleccionadas") + " · escolhe com ↑/↓ e Enter"}
 	for i := start; i < end; i++ {
 		item := items[i]
 		label := fmt.Sprintf("  %-5s %s", item.key, item.label)
@@ -106,13 +107,13 @@ func (m AppModel) actionsView() string {
 		if i == index {
 			label = catalogActiveStyle.Render(">" + label[1:])
 		}
-		lines = append(lines, label)
+		lines = append(lines, label, "")
 	}
 	item := items[index]
 	detail := item.description
 	if item.blocked != "" {
 		detail = item.blocked
 	}
-	lines = append(lines, "", truncateWidth(detail, max(1, m.width-4)), fmt.Sprintf("%d/%d · Os atalhos continuam disponíveis na lista.", index+1, len(items)), shortcutBar(max(1, m.width-4), "↑/↓ escolher", "enter abrir", "esc voltar"))
+	lines = append(lines, "", ansi.Wrap(detail, max(1, m.width-4), ""), fmt.Sprintf("%d/%d", index+1, len(items)), shortcutBar(max(1, m.width-4), "↑/↓ escolher", "enter abrir", "esc voltar"))
 	return section("ACÇÕES E AJUDA", strings.Join(lines, "\n"), m.width)
 }

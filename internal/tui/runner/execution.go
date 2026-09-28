@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/ineslino/azpipe/internal/azdo"
 	domainrunner "github.com/ineslino/azpipe/internal/runner"
@@ -135,7 +136,7 @@ func (m executionModel) view() string {
 	if width == 0 {
 		width = defaultWidth - 4
 	}
-	lines := []string{"", catalogTitleStyle.Render("Acompanhar pipelines"), "", catalogDetailStyle.Render(fmt.Sprintf("%d em fila    %d a correr    %s", queued, running, quantity(succeeded, "concluída", "concluídas")))}
+	lines := []string{"", catalogTitleStyle.Render("Acompanhar pipelines"), "", catalogDetailStyle.Render(fmt.Sprintf("%d em fila", queued)) + "    " + runStyle.Render(fmt.Sprintf("%d a correr", running)) + "    " + successStyle.Render(quantity(succeeded, "concluída", "concluídas"))}
 	if failed > 0 || unknown > 0 {
 		lines = append(lines, catalogWarningStyle.Render(fmt.Sprintf("%d sem sucesso    %d sem ID confirmado", failed, unknown)))
 	}
@@ -165,7 +166,7 @@ func (m executionModel) view() string {
 	start := m.offset / available * available
 	end := min(len(m.runs), start+available)
 	columns := []int{2, 18, max(1, width-26)}
-	lines = append(lines, "", catalogHeaderStyle.Render(tableCells(columns, "", "ESTADO", "PIPELINE")), "")
+	lines = append(lines, "", catalogHeaderStyle.Width(width).Render(tableCells(columns, "", "ESTADO", "PIPELINE")), "")
 	for index, result := range m.runs[start:end] {
 		name := pipelineDisplayName(result.Review.Selection.Pipeline, includeProject)
 		state := result.Run.State
@@ -197,15 +198,15 @@ func (m executionModel) view() string {
 		if start+index == m.offset {
 			marker = ">"
 		}
-		line := tableCells(columns, marker, state, name)
 		style := runStyle
 		if result.Run.Result == "succeeded" {
 			style = successStyle
 		}
-		if result.Run.Result == "failed" || result.Run.Result == "canceled" || result.Run.Result == "partiallySucceeded" {
+		if result.Err != nil || result.Run.ID == 0 || result.Run.Result == "failed" || result.Run.Result == "canceled" || result.Run.Result == "partiallySucceeded" {
 			style = catalogWarningStyle
 		}
-		lines = append(lines, runLink(result.Run.WebURL, style.Render(line)))
+		line := renderTableRow(columns, []string{marker, state, name}, start+index, start+index == m.offset, map[int]lipgloss.Style{1: style})
+		lines = append(lines, runLink(result.Run.WebURL, line))
 		if height >= 28 {
 			lines = append(lines, "")
 		}
@@ -222,7 +223,7 @@ func (m executionModel) view() string {
 		if m.demo {
 			detail = "Lote de exemplo independente da selecção; não foi executado."
 		}
-		lines = append(lines, "", catalogHeaderStyle.Render("DETALHE DA RUN SELECCIONADA"), horizontalWindow(pipelineDisplayName(r.Review.Selection.Pipeline, includeProject), m.horizontal, width), runLink(r.Run.WebURL, horizontalWindow(detail, m.horizontal, width)))
+		lines = append(lines, "", catalogHeaderStyle.Width(width).Render("DETALHE DA RUN SELECCIONADA"), catalogTitleStyle.Render(horizontalWindow(pipelineDisplayName(r.Review.Selection.Pipeline, includeProject), m.horizontal, width)), runLink(r.Run.WebURL, catalogDetailStyle.Render(horizontalWindow(detail, m.horizontal, width))))
 		if r.Err != nil {
 			lines = append(lines, horizontalWindow("Erro: "+r.Err.Error(), m.horizontal, width))
 		}

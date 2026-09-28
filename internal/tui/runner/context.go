@@ -259,7 +259,7 @@ func (m contextModel) view() string {
 			line := "  " + label
 			if index == m.projectCursor {
 				line = "> " + label
-				line = catalogActiveStyle.Render(line)
+				line = catalogActiveStyle.Width(width).Render(truncateWidth(line, width))
 			} else {
 				line = catalogDetailStyle.Render(line)
 			}

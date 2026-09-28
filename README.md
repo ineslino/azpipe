@@ -18,7 +18,9 @@ A demo usa dados fictícios, sem credenciais, chamadas ao Azure DevOps ou escrit
 
 ![Demo animada: pipelines, PLAN, revisão e gestão de branches com dados fictícios](docs/assets/azpipe-demo.gif)
 
-[Descarregar a demo em MP4 para partilhar](docs/assets/azpipe-demo.mp4) · 39 segundos, sem som. Ecrãs reais do modelo TUI offline, com paleta simplificada; histórico estático, sem execuções remotas.
+[Descarregar a demo em MP4 para partilhar](docs/assets/azpipe-demo.mp4) · 39 segundos, sem som. Ecrãs do modelo TUI offline com a sua paleta ANSI; histórico estático, sem execuções remotas.
+
+A interface adapta as cores a fundos claros e escuros, destaca a linha activa e separa RUN, PLAN e estados de execução. O detalhe mostra repositório, pasta e tags; os atalhos e marcadores continuam legíveis com `NO_COLOR`.
 
 ## O que faz
 

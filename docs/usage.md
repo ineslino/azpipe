@@ -140,8 +140,13 @@ the contextual footer only shows the primary actions. On review errors, select t
 affected row and press Enter to return to that pipeline for correction and a fresh
 preview. Exact execution confirmation is unchanged.
 
-The catalog and offline demo show the AZPIPE block banner at 60+ columns and 32+
-rows. Shorter terminals keep the compact identity and description to preserve rows.
+The catalog keeps a compact AZPIPE identity and workflow indicator, preserving room
+for pipelines even at 80×24. Table headers, full-row focus and contextual shortcuts
+share the same styling across selection, review, monitoring and branch management.
+RUN/PLAN and result colours complement text labels; `>` and `[x]` distinguish focus
+from selection without colour. Colours adapt to light/dark terminal backgrounds,
+and `NO_COLOR` disables the palette. The active pipeline detail includes repository,
+folder, tags and PLAN availability; `d` opens the complete metadata when values are clipped.
 
 | Key | Action |
 |-----|--------|

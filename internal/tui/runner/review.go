@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/ineslino/azpipe/internal/azdo"
 	domainrunner "github.com/ineslino/azpipe/internal/runner"
@@ -187,15 +188,13 @@ func (m reviewModel) view() string {
 		if includeProject {
 			values = []string{marker, state, string(r.Selection.Mode), fmt.Sprint(r.Selection.ID()), r.Selection.Pipeline.Project, r.Selection.Pipeline.Name}
 		}
-		line := tableCells(columns, values...)
-		style := modeStyle(string(r.Selection.Mode))
+		accents := map[int]lipgloss.Style{2: modeStyle(string(r.Selection.Mode))}
 		if r.Err != nil {
-			style = catalogWarningStyle
+			accents[1] = catalogWarningStyle
+		} else if r.State == domainrunner.ReviewReady {
+			accents[1] = successStyle
 		}
-		if i == m.offset {
-			style = catalogActiveStyle.Width(width)
-		}
-		lines = append(lines, style.Render(line))
+		lines = append(lines, renderTableRow(columns, values, i, i == m.offset, accents))
 	}
 	lines = append(lines, catalogDetailStyle.Render(fmt.Sprintf("  %d–%d de %d · ↑/↓ escolher pipeline", min(start+1, len(m.reviews)), end, len(m.reviews))))
 	if height >= 28 {
@@ -213,7 +212,7 @@ func (m reviewModel) view() string {
 		}
 		wrapped := strings.Split(ansi.Wrap(detail, width, ""), "\n")
 		scroll := min(m.horizontal, max(0, len(wrapped)-5))
-		lines = append(lines, catalogHeaderStyle.Render(truncateWidth("── Detalhe · "+pipelineDisplayName(r.Selection.Pipeline, includeProject), width)))
+		lines = append(lines, catalogHeaderStyle.Width(width).Render(truncateWidth("── Detalhe · "+pipelineDisplayName(r.Selection.Pipeline, includeProject), width)))
 		if height >= 28 {
 			lines = append(lines, "")
 		}

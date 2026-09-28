@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--org`, `--project` global flags; `AZDO_PAT`/`AZDO_ORG` env var support
 
 ### Changed
+- Refined the TUI palette for light/dark terminals, with full-row focus, consistent tables and semantic RUN/PLAN/status colours. Active pipeline details now include folder and tags, while existing shortcuts and confirmation gates remain unchanged.
+- Demo GIF/MP4 and PNGs now render the model's ANSI colours instead of inferring row colours from text.
 - Every persisted `~/.config/azpipe/config.yaml` is written with `0600` permissions
 - `azpipe auth set --pat` is documented and labelled as legacy; `AZDO_PAT` or external
   credential injection is recommended

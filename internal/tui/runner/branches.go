@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/ineslino/azpipe/internal/azdo"
 )
@@ -478,15 +479,11 @@ func renderBranchTable(inner int, widths []int, headers []string, rows [][]strin
 			values = append([]string(nil), values...)
 			values[0] = ">" + values[0]
 		}
-		row := tableCells(widths, values...)
-		if index == active {
-			row = catalogActiveStyle.Width(inner).Render(row)
-		} else if selected[index] {
-			row = catalogDetailStyle.Bold(true).Width(inner).Render(row)
-		} else if index%2 == 0 {
-			row = stripeStyle.Width(inner).Render(row)
+		var accents map[int]lipgloss.Style
+		if selected[index] {
+			accents = map[int]lipgloss.Style{0: brandLimeStyle}
 		}
-		lines = append(lines, row)
+		lines = append(lines, renderTableRow(widths, values, index, index == active, accents))
 	}
 	return strings.Join(lines, "\n")
 }

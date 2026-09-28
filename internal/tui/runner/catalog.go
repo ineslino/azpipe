@@ -10,9 +10,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/ineslino/azpipe/internal/azdo"
 	domainrunner "github.com/ineslino/azpipe/internal/runner"
-	"github.com/mattn/go-runewidth"
 )
 
 const (
@@ -377,13 +377,14 @@ func (m CatalogModel) View() string {
 	if len(m.branches) > 0 {
 		branchLabel = "por pipeline (perfil)"
 	}
+	m.search.Width = max(8, m.width-14)
 	lines := []string{
 		catalogTitleStyle.Render(truncateWidth(m.nextStep(), m.width)),
 		runStyle.Render(fmt.Sprintf("%d RUN", len(m.selected)-plans)) + "  " + planStyle.Render(fmt.Sprintf("%d PLAN", plans)) + "  " + catalogDetailStyle.Render(truncateWidth("Branch: "+branchLabel, max(1, m.width-20))),
 		m.search.View(),
 	}
 	if m.height >= 24 {
-		lines = []string{"", lines[0], lines[1], "", lines[2], ""}
+		lines = []string{lines[0], lines[1], "", lines[2], ""}
 	}
 
 	start, end := m.displayRange()
@@ -424,30 +425,32 @@ func (m CatalogModel) View() string {
 		} else if m.width < 70 {
 			values = []string{marker, mode, strconv.Itoa(pipeline.ID), pipeline.Name}
 		}
-		row := tableCells(widths, values...)
-		if index == m.cursor {
-			row = catalogActiveStyle.Width(inner).Render(row)
-		} else if mode, selected := m.selected[key]; selected {
-			row = modeStyle(string(mode)).Render(row)
-		} else if index%2 == 0 {
-			row = stripeStyle.Width(inner).Render(row)
+		var accents map[int]lipgloss.Style
+		if _, selected := m.selected[key]; selected {
+			accents = map[int]lipgloss.Style{0: brandLimeStyle, 1: modeStyle(mode)}
 		}
-		rows = append(rows, row)
+		rows = append(rows, renderTableRow(widths, values, index, index == m.cursor, accents))
 	}
 	for len(rows) < min(3, m.catalogCapacity())+1 {
 		rows = append(rows, "")
 	}
 	lines = append(lines, section(fmt.Sprintf("PIPELINES %d–%d / %d", min(start+1, len(m.visible)), end, len(m.visible)), strings.Join(rows, "\n"), m.width))
-	detail := "Nenhuma pipeline activa.\nAltere o filtro para ver resultados."
+	detail := "Nenhuma pipeline activa.\nAltere o filtro para ver resultados.\nA selecção anterior mantém-se."
 	if pipeline, ok := m.active(); ok {
 		capability := "PLAN indisponível: sem contrato validado"
+		capabilityStyle := catalogDetailStyle
 		if pipeline.PlanContract != nil {
 			capability = "PLAN disponível por contrato"
+			capabilityStyle = planStyle
 		}
 		if pipeline.MetadataWarning != "" {
 			capability = "Metadados incompletos · d para consultar aviso"
+			capabilityStyle = catalogWarningStyle
 		}
-		detail = catalogDetailStyle.Render("Repositório: "+pipeline.RepoName) + "\n" + planStyle.Render(capability) + catalogDetailStyle.Render(" · "+quantity(len(m.parameters[domainrunner.PipelineKey(pipeline)]), "parâmetro", "parâmetros"))
+		left := (inner - 3) / 2
+		detail = tableCells([]int{left, inner - 3 - left}, metadata("Repositório", pipeline.RepoName), metadata("Pasta", pipeline.Folder)) + "\n" +
+			metadata("Tags", strings.Join(pipeline.Tags, ", ")) + "\n" +
+			capabilityStyle.Render(capability) + catalogDetailStyle.Render(" · "+quantity(len(m.parameters[domainrunner.PipelineKey(pipeline)]), "parâmetro", "parâmetros"))
 	}
 	lines = append(lines, section("DETALHE DA PIPELINE ACTIVA", detail, m.width))
 	if m.input == inputBranch {
@@ -477,9 +480,9 @@ func (m CatalogModel) displayRange() (int, int) {
 }
 
 func (m CatalogModel) catalogCapacity() int {
-	available := m.height - 15 - lipgloss.Height(m.helpView())
+	available := m.height - 16 - lipgloss.Height(m.helpView())
 	if m.height >= 24 {
-		available -= 3
+		available -= 2
 	}
 	if m.warning != "" {
 		available--
@@ -583,23 +586,10 @@ func pipelineDisplayName(pipeline azdo.Pipeline, includeProject bool) string {
 }
 
 func truncateWidth(value string, width int) string {
-	if width <= 0 || runewidth.StringWidth(value) <= width {
+	if width <= 0 {
 		return value
 	}
-	if width == 1 {
-		return "…"
-	}
-	var builder strings.Builder
-	used := 0
-	for _, r := range value {
-		runeWidth := runewidth.RuneWidth(r)
-		if used+runeWidth > width-1 {
-			break
-		}
-		builder.WriteRune(r)
-		used += runeWidth
-	}
-	return builder.String() + "…"
+	return ansi.Truncate(value, width, "…")
 }
 
 func horizontalWindow(value string, offset, width int) string {

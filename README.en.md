@@ -18,7 +18,9 @@ The demo uses fictional data, without credentials, Azure DevOps calls or profile
 
 ![Animated demo: pipelines, PLAN, review and branch management with fictional data](docs/assets/azpipe-demo.gif)
 
-[Download the shareable MP4 demo](docs/assets/azpipe-demo.mp4) · 39 seconds, silent, Portuguese captions. Actual offline TUI model views with a simplified palette; static history, no remote runs.
+[Download the shareable MP4 demo](docs/assets/azpipe-demo.mp4) · 39 seconds, silent, Portuguese captions. Offline TUI model views using their ANSI palette; static history, no remote runs.
+
+The interface adapts its colours to light and dark backgrounds, highlights the active row, and distinguishes RUN, PLAN and execution states. Details show the repository, folder and tags; shortcuts and selection markers remain readable with `NO_COLOR`.
 
 ## Capabilities
 

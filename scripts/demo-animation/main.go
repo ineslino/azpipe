@@ -7,26 +7,33 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/ineslino/azpipe/internal/tui/runner"
+	"github.com/muesli/termenv"
 )
 
 type frame struct {
 	Caption string `json:"caption"`
 	View    string `json:"view"`
+	ANSI    string `json:"ansi,omitempty"`
 	Seconds int    `json:"seconds"`
 }
 
 func main() {
+	// Deterministic documentation colours; the interactive app still detects its terminal.
+	lipgloss.SetColorProfile(termenv.ANSI256)
+	lipgloss.SetHasDarkBackground(true)
 	var m tea.Model = runner.NewDemoApp()
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 32})
 	frames := []frame{}
 	snap := func(caption, expected string, seconds int) {
-		view := ansi.Strip(m.View())
+		styled := m.View()
+		view := ansi.Strip(styled)
 		if !strings.Contains(view, expected) {
 			panic("unexpected demo screen: " + caption)
 		}
-		frames = append(frames, frame{caption, view, seconds})
+		frames = append(frames, frame{Caption: caption, View: view, ANSI: styled, Seconds: seconds})
 	}
 	key := func(k tea.KeyType, text string, run bool) {
 		var cmd tea.Cmd

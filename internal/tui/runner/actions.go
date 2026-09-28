@@ -105,7 +105,11 @@ func (m AppModel) actionsView() string {
 		}
 		label = truncateWidth(label, max(1, m.width-4))
 		if i == index {
-			label = catalogActiveStyle.Render(">" + label[1:])
+			label = catalogActiveStyle.Width(max(1, m.width-4)).Render(">" + label[1:])
+		} else if item.blocked != "" {
+			label = catalogDetailStyle.Render(label)
+		} else {
+			label = catalogTextStyle.Render(label)
 		}
 		lines = append(lines, label, "")
 	}

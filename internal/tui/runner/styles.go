@@ -16,21 +16,29 @@ func quantity(n int, singular, plural string) string {
 }
 
 var (
-	catalogTitleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))
-	catalogHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("117")).Background(lipgloss.Color("17"))
+	// Keep the lime/cyan identity; use adaptive neutrals for terminal backgrounds.
+	accentColor         = lipgloss.AdaptiveColor{Light: "22", Dark: "190"}
+	focusColor          = lipgloss.AdaptiveColor{Light: "25", Dark: "81"}
+	textColor           = lipgloss.AdaptiveColor{Light: "235", Dark: "254"}
+	mutedColor          = lipgloss.AdaptiveColor{Light: "241", Dark: "246"}
+	surfaceColor        = lipgloss.AdaptiveColor{Light: "254", Dark: "235"}
+	catalogTextStyle    = lipgloss.NewStyle().Foreground(textColor)
+	catalogTitleStyle   = catalogTextStyle.Bold(true)
+	catalogHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(focusColor).Background(surfaceColor)
 	catalogActiveStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("231")).Background(lipgloss.Color("24"))
-	catalogDetailStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "240", Dark: "250"})
-	catalogWarningStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203"))
+	catalogDetailStyle  = lipgloss.NewStyle().Foreground(mutedColor)
+	catalogWarningStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "124", Dark: "210"})
 	catalogFooterStyle  = catalogDetailStyle
-	planStyle           = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("141"))
-	successStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42"))
-	runStyle            = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
+	planStyle           = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "91", Dark: "183"})
+	successStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "22", Dark: "84"})
+	runStyle            = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "94", Dark: "221"})
 	brandStyle          = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("234")).Background(lipgloss.Color("81")).Padding(0, 1)
-	keyStyle            = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))
-	borderStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
-	stripeStyle         = lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "254", Dark: "235"})
+	keyStyle            = lipgloss.NewStyle().Bold(true).Foreground(focusColor)
+	shortcutKeyStyle    = keyStyle.Background(surfaceColor)
+	borderStyle         = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "245", Dark: "240"})
+	stripeStyle         = catalogTextStyle.Background(lipgloss.AdaptiveColor{Light: "255", Dark: "234"})
 	wordmarkStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("232")).Background(lipgloss.Color("190")).Padding(0, 2)
-	brandLimeStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("190"))
+	brandLimeStyle      = lipgloss.NewStyle().Bold(true).Foreground(accentColor)
 	brandWhiteStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "232", Dark: "231"})
 )
 
@@ -79,7 +87,7 @@ func section(title, body string, width int) string {
 	}
 	width = max(8, width)
 	label := truncateWidth(" "+title+" ", width-4)
-	lines := []string{borderStyle.Render("╭─" + label + strings.Repeat("─", max(0, width-3-lipgloss.Width(label))) + "╮")}
+	lines := []string{borderStyle.Render("╭─") + keyStyle.Render(label) + borderStyle.Render(strings.Repeat("─", max(0, width-3-lipgloss.Width(label)))+"╮")}
 	for _, line := range strings.Split(body, "\n") {
 		line = ansi.Truncate(line, width-4, "…")
 		lines = append(lines, borderStyle.Render("│ ")+line+strings.Repeat(" ", max(0, width-4-lipgloss.Width(line)))+borderStyle.Render(" │"))
@@ -93,11 +101,41 @@ func tableCells(widths []int, values ...string) string {
 	for i, width := range widths {
 		text := ""
 		if i < len(values) {
-			text = truncateWidth(values[i], width)
+			text = ansi.Truncate(values[i], width, "…")
 		}
 		cells[i] = text + strings.Repeat(" ", max(0, width-lipgloss.Width(text)))
 	}
 	return strings.Join(cells, " │ ")
+}
+
+// Focus spans the row; semantic colours belong to individual cells.
+func renderTableRow(widths []int, values []string, index int, active bool, accents map[int]lipgloss.Style) string {
+	style := catalogTextStyle
+	if active {
+		style = catalogActiveStyle
+	} else if index%2 == 0 {
+		style = stripeStyle
+	}
+	cells := make([]string, len(widths))
+	for i, width := range widths {
+		cellStyle := style
+		if accent, ok := accents[i]; ok && !active {
+			cellStyle = cellStyle.Foreground(accent.GetForeground()).Bold(accent.GetBold())
+		}
+		value := ""
+		if i < len(values) {
+			value = truncateWidth(values[i], width)
+		}
+		cells[i] = cellStyle.Width(width).Render(value)
+	}
+	return strings.Join(cells, style.Render(" │ "))
+}
+
+func metadata(label, value string) string {
+	if value == "" {
+		value = "n/d"
+	}
+	return catalogDetailStyle.Render(label+": ") + catalogTextStyle.Render(value)
 }
 
 // textPage keeps wrapped diagnostics readable without losing the recovery footer.
@@ -123,7 +161,7 @@ func shortcutBar(width int, items ...string) string {
 	line := ""
 	for _, item := range items {
 		parts := strings.SplitN(item, " ", 2)
-		label := keyStyle.Render(parts[0])
+		label := shortcutKeyStyle.Render(parts[0])
 		if len(parts) == 2 {
 			label += " " + catalogDetailStyle.Render(parts[1])
 		}

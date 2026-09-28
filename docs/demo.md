@@ -6,9 +6,9 @@
 
 [Descarregar MP4 / Download MP4](assets/azpipe-demo.mp4) · 39 segundos · 1280×900 · sem som / silent.
 
-A animação mostra o catálogo, filtro, selecção PLAN, revisão de parâmetros, histórico fictício, tabela de branches, filtro por criador e revisão da eliminação. São vistas reais do modelo TUI, accionadas por teclas programáticas e renderizadas com uma paleta simplificada. Não é uma gravação de uma sessão Azure DevOps: não demonstra login, descoberta de projectos nem execução remota. O histórico mostrado é estático. Não são usados dados ou credenciais de utilizadores.
+A animação mostra o catálogo, filtro, selecção PLAN, revisão de parâmetros, histórico fictício, tabela de branches, filtro por criador e revisão da eliminação. São vistas do modelo TUI, accionadas por teclas programáticas e renderizadas com a paleta ANSI de 256 cores emitida pelo modelo, em fundo escuro. A tipografia é simulada. Não é uma gravação de uma sessão Azure DevOps: não demonstra login, descoberta de projectos nem execução remota. O histórico mostrado é estático. Não são usados dados ou credenciais de utilizadores.
 
-The animation renders actual offline TUI model views, driven by scripted key events, using a simplified palette. It demonstrates catalog filtering, PLAN selection, review, fictional history and branch management. It does not demonstrate authentication, project discovery or remote execution.
+The animation renders offline TUI model views, driven by scripted key events, using the model's 256-colour ANSI palette on a dark background with simulated typography. It demonstrates catalog filtering, PLAN selection, review, fictional history and branch management. It does not demonstrate authentication, project discovery or remote execution.
 
 Para regenerar, na raiz do repo, com Go, Python 3 + Pillow e FFmpeg instalados:
 
@@ -16,7 +16,7 @@ Para regenerar, na raiz do repo, com Go, Python 3 + Pillow e FFmpeg instalados:
 python3 scripts/demo-animation/render.py
 ```
 
-O script valida os ecrãs esperados e gera `docs/assets/azpipe-demo.gif`, `azpipe-demo.mp4` e `demo-review.png`. Usa Menlo no macOS ou DejaVu Sans Mono no Linux; podes definir `DEMO_FONT` com o caminho de outra fonte monoespaçada. Os ficheiros temporários são removidos no fim. O GIF é incorporável no README e o MP4 pode ser enviado como anexo aos colegas.
+O script valida os ecrãs esperados e gera `docs/assets/azpipe-demo.gif`, `azpipe-demo.mp4`, `demo-catalog.png`, `demo-review.png` e `demo-monitoring.png`. Usa Menlo no macOS ou DejaVu Sans Mono no Linux; podes definir `DEMO_FONT` com o caminho de outra fonte monoespaçada. Os ficheiros temporários são removidos no fim. O GIF é incorporável no README e o MP4 pode ser enviado como anexo aos colegas.
 
 ## PT
 

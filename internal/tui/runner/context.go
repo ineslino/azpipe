@@ -217,8 +217,12 @@ func (m contextModel) view() string {
 		width = defaultWidth - 4
 	}
 	m.organization.Width = max(8, width-15)
+	brand := wordmarkStyle.Render("AZPIPE")
+	if len(m.projects) == 0 && width >= 56 {
+		brand = welcomeBrand()
+	}
 	lines := []string{
-		wordmarkStyle.Render("AZPIPE"),
+		brand,
 		"",
 		catalogTitleStyle.Render("Ligar ao Azure DevOps"),
 	}

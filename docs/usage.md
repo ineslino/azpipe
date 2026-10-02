@@ -470,6 +470,10 @@ The selection count includes pipelines hidden by the current search, even when
 there are no matches. Use `x` (also in the actions menu) to remove only hidden
 selections. Visible selections and their RUN/PLAN modes are preserved.
 
+The connection screen displays the AZPIPE block banner before authentication,
+including at 80×24. The project picker uses the compact title to leave room for
+the list and recovery messages.
+
 The catalogue retains the AZPIPE block banner in terminals with at least 60
 columns and 36 rows; smaller terminals keep the compact AZPIPE header so the
 pipeline list and controls remain visible.

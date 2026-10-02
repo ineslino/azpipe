@@ -463,6 +463,26 @@ make test     # → go test -race ./...
 make lint     # → golangci-lint run ./...
 ```
 
+### Discovering actions and recovering a batch
+
+In the catalogue, `a` or `?` opens actions and help, labelled by purpose.
+The selection count includes pipelines hidden by the current search, even when
+there are no matches. Use `x` (also in the actions menu) to remove only hidden
+selections. Visible selections and their RUN/PLAN modes are preserved.
+
+The catalogue retains the AZPIPE block banner in terminals with at least 60
+columns and 36 rows; smaller terminals keep the compact AZPIPE header so the
+pipeline list and controls remain visible.
+
+Review shows ready, blocked and pending counts. When validation finishes with
+errors, focus moves to the first blocked pipeline. Enter returns to that pipeline
+for correction; no run is submitted by this action.
+
+If submission has no confirmed run ID, check the pipeline in Azure DevOps before
+repeating RUN. Automatic refresh only follows known run IDs. Escape followed by
+`h` opens batch history; leaving the TUI does not cancel accepted runs.
+
+
 ## License
 
 MIT — see [LICENSE](../LICENSE).

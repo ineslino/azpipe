@@ -46,8 +46,8 @@ func TestContextFooterAndBannerFit(t *testing.T) {
 		m := NewDemoApp()
 		u, _ := m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 		m = u.(AppModel)
-		if !strings.Contains(m.View(), "AZPIPE") || strings.Contains(m.View(), "█") {
-			t.Fatal("catalog must retain compact branding")
+		if !strings.Contains(m.View(), "AZPIPE") || (size[1] >= 36 && !strings.Contains(m.View(), "█")) {
+			t.Fatal("catalog must retain responsive AZPIPE branding")
 		}
 		if strings.Contains(m.catalog.helpView(), "guardar perfil") {
 			t.Fatal("secondary action leaked into footer")

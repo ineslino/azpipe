@@ -162,6 +162,16 @@ func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
+	case "x":
+		visible := make(map[string]bool, len(m.visible))
+		for _, pipeline := range m.visible {
+			visible[domainrunner.PipelineKey(pipeline)] = true
+		}
+		for key := range m.selected {
+			if !visible[key] {
+				delete(m.selected, key)
+			}
+		}
 	case "A":
 		for _, pipeline := range m.visible {
 			key := domainrunner.PipelineKey(pipeline)
@@ -521,26 +531,30 @@ func (m CatalogModel) helpView() string {
 			}
 		}
 	}
-	return shortcutBar(max(1, m.width-4), items[0]) + "\n" + shortcutBar(max(1, m.width-4), append(items[1:], "d detalhe", "a acções", ":q sair")...)
+	return shortcutBar(max(1, m.width-4), items[0]) + "\n" + shortcutBar(max(1, m.width-4), append(items[1:], "d detalhe", "a/? acções e ajuda", ":q sair")...)
 }
 
 func (m CatalogModel) nextStep() string {
-	if m.input == inputSearch {
-		return "A filtrar pipelines. Enter termina a pesquisa."
-	}
-	if len(m.visible) == 0 {
-		return "Sem resultados. Altera a pesquisa com /."
-	}
-	if len(m.selected) == 0 {
-		return "Selecciona as pipelines que queres executar."
-	}
 	visibleSelected := 0
 	for _, p := range m.visible {
 		if _, ok := m.selected[domainrunner.PipelineKey(p)]; ok {
 			visibleSelected++
 		}
 	}
-	return fmt.Sprintf("%s (%s). Enter revê; ainda não executa.", quantity(len(m.selected), "seleccionada", "seleccionadas"), quantity(len(m.selected)-visibleSelected, "oculta", "ocultas"))
+	if len(m.selected) > 0 {
+		next := "Enter revê"
+		if m.input == inputSearch {
+			next = "Enter termina pesquisa"
+		}
+		return fmt.Sprintf("%s · %s pelo filtro · %s", quantity(len(m.selected), "seleccionada", "seleccionadas"), quantity(len(m.selected)-visibleSelected, "oculta", "ocultas"), next)
+	}
+	if m.input == inputSearch {
+		return "A procurar pipelines. Enter termina a pesquisa."
+	}
+	if len(m.visible) == 0 {
+		return "Sem resultados. Altera a pesquisa com /."
+	}
+	return "Selecciona as pipelines que queres executar."
 }
 
 func (m CatalogModel) pipelineRow(pipeline azdo.Pipeline, active bool) string {

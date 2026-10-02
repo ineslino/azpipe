@@ -453,6 +453,7 @@ func (m CatalogModel) View() string {
 		rows = append(rows, "")
 	}
 	lines = append(lines, section(fmt.Sprintf("PIPELINES %d–%d / %d", min(start+1, len(m.visible)), end, len(m.visible)), strings.Join(rows, "\n"), m.width))
+	compactDetail := "Nenhuma pipeline activa. Altera a pesquisa."
 	detail := "Nenhuma pipeline activa.\nAltere o filtro para ver resultados.\nA selecção anterior mantém-se."
 	if pipeline, ok := m.active(); ok {
 		capability := "PLAN indisponível: sem contrato validado"
@@ -465,12 +466,17 @@ func (m CatalogModel) View() string {
 			capability = "Metadados incompletos · d para consultar aviso"
 			capabilityStyle = catalogWarningStyle
 		}
+		compactDetail = capabilityStyle.Render(capability)
 		left := (inner - 3) / 2
 		detail = tableCells([]int{left, inner - 3 - left}, metadata("Repositório", pipeline.RepoName), metadata("Pasta", pipeline.Folder)) + "\n" +
 			metadata("Tags", strings.Join(pipeline.Tags, ", ")) + "\n" +
 			capabilityStyle.Render(capability) + catalogDetailStyle.Render(" · "+quantity(len(m.parameters[domainrunner.PipelineKey(pipeline)]), "parâmetro", "parâmetros"))
 	}
-	lines = append(lines, section("DETALHE DA PIPELINE ACTIVA", detail, m.width))
+	if m.height < 28 && len(m.visible) > 3 {
+		lines = append(lines, catalogDetailStyle.Render(truncateWidth("d detalhe completo · "+compactDetail, m.width)))
+	} else {
+		lines = append(lines, section("DETALHE DA PIPELINE ACTIVA", detail, m.width))
+	}
 	if m.input == inputBranch {
 		lines = append(lines, m.branch.View())
 	}
@@ -483,7 +489,7 @@ func (m CatalogModel) View() string {
 	if m.notice != "" {
 		lines = append(lines, catalogDetailStyle.Render(truncateWidth(m.notice, m.width)))
 	}
-	lines = append(lines, section("ACÇÕES", m.helpView(), m.width))
+	lines = append(lines, section("ACÇÕES E AJUDA · a ou ? abre o menu", m.helpView(), m.width))
 	return strings.Join(lines, "\n")
 }
 
@@ -499,6 +505,9 @@ func (m CatalogModel) displayRange() (int, int) {
 
 func (m CatalogModel) catalogCapacity() int {
 	available := m.height - 16 - lipgloss.Height(m.helpView())
+	if m.height < 28 && len(m.visible) > 3 {
+		available += 4
+	}
 	if m.height >= 24 {
 		available -= 2
 	}
@@ -554,7 +563,7 @@ func (m CatalogModel) nextStep() string {
 	if len(m.visible) == 0 {
 		return "Sem resultados. Altera a pesquisa com /."
 	}
-	return "Selecciona as pipelines que queres executar."
+	return "Selecciona com espaço. a/? abre acções, perfis e histórico."
 }
 
 func (m CatalogModel) pipelineRow(pipeline azdo.Pipeline, active bool) string {

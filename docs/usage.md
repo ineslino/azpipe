@@ -466,6 +466,14 @@ make lint     # → golangci-lint run ./...
 ### Discovering actions and recovering a batch
 
 In the catalogue, `a` or `?` opens actions and help, labelled by purpose.
+The initial prompt and action heading make this menu visible. With more than
+three search results in a low terminal, the automatic detail panel collapses to
+one line so the list can display four additional rows. Press `d` for full detail.
+
+Completed batches show an explicit overall outcome: success, runs without
+success, or submissions whose IDs still need confirmation. The existing counters
+remain visible, and mixed outcomes point to the corresponding recovery action.
+
 The selection count includes pipelines hidden by the current search, even when
 there are no matches. Use `x` (also in the actions menu) to remove only hidden
 selections. Visible selections and their RUN/PLAN modes are preserved.

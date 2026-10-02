@@ -142,6 +142,17 @@ func (m executionModel) view() string {
 	}
 	if m.demo {
 		lines[1] = catalogTitleStyle.Render("Acompanhamento · exemplo fictício")
+	} else if m.queued && !hasNonTerminalRun(m.runs) {
+		title := "Lote concluído com sucesso"
+		switch {
+		case unknown > 0:
+			title = "Lote por confirmar · existem submissões sem ID"
+		case failed > 0:
+			title = "Lote terminado · existem runs sem sucesso"
+		case len(m.runs) == 0:
+			title = "Lote sem runs confirmadas"
+		}
+		lines[1] = catalogTitleStyle.Render(title)
 	}
 	if m.journal != "" {
 		lines = append(lines, horizontalWindow("Retoma: azpipe resume "+m.journal, m.horizontal, m.width))
@@ -238,7 +249,13 @@ func (m executionModel) view() string {
 	if m.demo {
 		status = "Demonstração estática · sem pedidos Azure"
 	} else if !hasNonTerminalRun(m.runs) && m.queued {
-		status = "Acompanhamento terminado · sem runs conhecidas pendentes"
+		status = "Todas as runs terminaram. Esc volta ao catálogo."
+		if len(m.runs) == 0 {
+			status = "Consulta o erro de submissão; não há runs confirmadas."
+		}
+		if failed > 0 {
+			status = "Revê as runs sem sucesso e os seus logs antes de repetir."
+		}
 	}
 	if !m.demo && m.queued && unknown > 0 {
 		status = "ID incerto: confirma no Azure DevOps antes de repetir o RUN."

@@ -32,7 +32,11 @@ func TestBorderedCatalogSectionsAndReviewPaging(t *testing.T) {
 		m.demo = true
 		updated, _ := m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 		m = updated.(AppModel)
-		for _, title := range []string{"╭─ PIPELINES", "╭─ DETALHE", "╭─ ACÇÕES"} {
+		detailTitle := "╭─ DETALHE"
+		if size[1] < 30 {
+			detailTitle = "d detalhe completo"
+		}
+		for _, title := range []string{"╭─ PIPELINES", detailTitle, "╭─ ACÇÕES"} {
 			if !strings.Contains(m.View(), title) {
 				t.Fatal("missing section", title)
 			}

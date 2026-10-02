@@ -15,7 +15,9 @@ azpipe branches delete --org example-org --project sample-project --repo sample-
 
 No catálogo de pipelines, `B` abre a mesma área. Esta primeira versão trabalha num projecto e num repositório de cada vez, não em **Todos os projectos**.
 
-Na lista: `/` filtra o nome, `u` filtra o criador, `c` limpa os filtros, espaço selecciona, Enter revê, `r` actualiza e limpa a selecção, `b` muda de repositório e `q` sai. Selecções ocultas pelo filtro continuam seleccionadas e aparecem na revisão. Usa setas para percorrer a revisão e `←`/`→` para deslocar o detalhe completo. Esc regressa sem eliminar. A confirmação exige escrever exactamente `ELIMINAR`; a demo nunca envia eliminações.
+Na lista: `/` filtra o nome, `u` filtra o criador, `R`/`L`/`W` mostram ou ocultam origens remotas, locais e worktrees, `c` limpa os filtros, espaço selecciona uma branch remota, `a` selecciona todas as remotas visíveis, Enter revê, `r` actualiza e limpa a selecção, `b` muda de repositório e `q` sai. O breadcrumb mostra sempre o nível actual: projecto, repositórios, branch, revisão ou resultados. `Esc` recua um nível; nunca termina a aplicação. Selecções ocultas pelo filtro continuam seleccionadas e aparecem na revisão. Usa setas para percorrer a revisão e `←`/`→` para deslocar o detalhe completo. A confirmação exige escrever exactamente `ELIMINAR`; a demo nunca envia eliminações.
+
+Quando o repositório Azure DevOps corresponde ao checkout Git actual, a lista agrega branches locais e branches ligadas a worktrees. Essas entradas aparecem como `LOCAL` ou `WORKTREE`, mostram o caminho e são só de leitura. Apenas entradas `REMOTE` podem entrar no fluxo de revisão e eliminação. A correspondência aceita os formatos HTTPS e SSH do Azure DevOps; se não for possível confirmar a correspondência, o TUI mostra apenas as branches remotas.
 
 O criador vem de `GitRef.creator`: não é o autor do último commit nem o autor de um PR. O filtro aceita parte do nome, email ou ID, sem distinguir maiúsculas. Sem esse campo, mostra «criador desconhecido» e não inventa ownership. A coluna CLI `IS_LOCKED` só representa o bloqueio da ref, não todas as protecções.
 

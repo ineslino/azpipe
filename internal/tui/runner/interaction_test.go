@@ -19,6 +19,21 @@ func TestModeNeverSelectsImplicitly(t *testing.T) {
 	}
 }
 
+func TestCatalogSelectAllVisibleAndEscapeStaysInCatalog(t *testing.T) {
+	m := catalogFixture()
+	m.search.SetValue("api")
+	m.filter()
+	updated, command := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("A")})
+	m = updated.(CatalogModel)
+	if command != nil || len(m.Selected()) != len(m.visible) {
+		t.Fatalf("select all selected %d of %d visible pipelines", len(m.Selected()), len(m.visible))
+	}
+	updated, command = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if command != nil || updated.(CatalogModel).input != inputNone {
+		t.Fatal("escape unexpectedly quit or changed catalog input")
+	}
+}
+
 func TestParameterFormSaveAndDiscard(t *testing.T) {
 	m := catalogFixture()
 	m = updateCatalog(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})

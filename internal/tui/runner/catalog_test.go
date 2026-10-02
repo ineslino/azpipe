@@ -103,7 +103,7 @@ func TestCatalogSearch_FiltersEveryPipelineAttribute(t *testing.T) {
 	}
 }
 
-func TestCatalogEscape_ClearsSearchBeforeQuitting(t *testing.T) {
+func TestCatalogEscape_ClearsSearchWithoutQuitting(t *testing.T) {
 	model := catalogFixture()
 	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
 	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
@@ -119,11 +119,8 @@ func TestCatalogEscape_ClearsSearchBeforeQuitting(t *testing.T) {
 	}
 
 	_, cmd = updateCatalogWithCmd(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd == nil {
-		t.Fatal("escape after clearing search must quit")
-	}
-	if _, quit := cmd().(tea.QuitMsg); !quit {
-		t.Fatalf("escape after clearing search message = %T, want tea.QuitMsg", cmd())
+	if cmd != nil {
+		t.Fatal("escape after clearing search must stay in the catalog")
 	}
 }
 

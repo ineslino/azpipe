@@ -85,6 +85,7 @@ Usa `AZDO_PAT` injectado pelo teu mecanismo de credenciais e `AZDO_ORG` para o c
 | Tecla | Acção |
 | --- | --- |
 | `a` / `?` | Menu de acções e ajuda, com descrições e motivos de indisponibilidade |
+| `A` | Seleccionar todas as pipelines visíveis |
 | Setas / `j` / `k` | Navegar |
 | `/` / espaço | Filtrar / seleccionar |
 | `d` | Detalhe completo da pipeline; setas percorrem e Esc regressa |

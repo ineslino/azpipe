@@ -162,6 +162,11 @@ func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
+	case "A":
+		for _, pipeline := range m.visible {
+			m.selected[domainrunner.PipelineKey(pipeline)] = domainrunner.ModeRun
+		}
+		m.warning = ""
 	case "/":
 		m.input = inputSearch
 		return m, m.search.Focus()
@@ -315,7 +320,7 @@ func (m CatalogModel) escape() (tea.Model, tea.Cmd) {
 		m.input = inputNone
 		return m, nil
 	}
-	return m, tea.Quit
+	return m, nil
 }
 
 func (m *CatalogModel) filter() {
@@ -503,7 +508,7 @@ func (m CatalogModel) helpView() string {
 	if m.input != inputNone {
 		return shortcutBar(max(1, m.width-4), "enter guardar e voltar à lista", "esc cancelar edição")
 	}
-	items := []string{"espaço seleccionar", "/ procurar"}
+	items := []string{"espaço seleccionar", "A seleccionar todas", "/ procurar"}
 	if len(m.selected) > 0 {
 		items = []string{"enter rever " + quantity(len(m.selected), "pipeline", "pipelines"), "espaço seleccionar"}
 		if p, ok := m.active(); ok {

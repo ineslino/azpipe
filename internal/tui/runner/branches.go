@@ -17,6 +17,7 @@ type branchLoaded struct {
 	token    uint64
 	repos    []azdo.Repository
 	branches []azdo.Branch
+	entries  []branchEntry
 	err      error
 }
 type branchReviewed struct {
@@ -38,6 +39,7 @@ type BranchModel struct {
 	repos                         []azdo.Repository
 	repo                          azdo.Repository
 	branches                      []azdo.Branch
+	entries                       []branchEntry
 	selected                      map[string]bool
 	reviewed                      []azdo.Branch
 	cursor, width, height         int
@@ -51,6 +53,8 @@ type BranchModel struct {
 	results                       []string
 	demo                          bool
 	returnToCatalog               bool
+	originFilter                  map[branchOrigin]bool
+	workingDirectory              string
 	opCtx                         context.Context
 	cancel                        context.CancelFunc
 	generation                    uint64
@@ -74,7 +78,7 @@ func NewBranchModel(client azdo.Client, project string) BranchModel {
 	creator.CharLimit = 256
 	confirmation.CharLimit = 8
 	api, _ := client.(azdo.BranchClient)
-	m := BranchModel{client: client, api: api, project: project, selected: map[string]bool{}, width: 100, height: 32, stage: "repos", filter: filter, creator: creator, confirmation: confirmation, busy: true}
+	m := BranchModel{client: client, api: api, project: project, selected: map[string]bool{}, originFilter: allBranchOrigins(), width: 100, height: 32, stage: "repos", filter: filter, creator: creator, confirmation: confirmation, busy: true}
 	m.startOperation()
 	return m
 }
@@ -93,6 +97,7 @@ func NewBranchDemo() BranchModel {
 			b.Blocked = "branch principal protegida"
 		}
 		m.branches = append(m.branches, b)
+		m.entries = append(m.entries, remoteBranchEntry(b))
 	}
 	return m
 }
@@ -115,14 +120,70 @@ func (m BranchModel) Init() tea.Cmd {
 	}
 }
 
-func (m BranchModel) visible() []azdo.Branch {
-	var rows []azdo.Branch
-	for _, b := range m.branches {
-		if b.Matches(m.filter.Value(), m.creator.Value()) {
-			rows = append(rows, b)
+func allBranchOrigins() map[branchOrigin]bool {
+	return map[branchOrigin]bool{
+		branchOriginRemote:   true,
+		branchOriginLocal:    true,
+		branchOriginWorktree: true,
+	}
+}
+
+func (m BranchModel) displayEntries() []branchEntry {
+	if len(m.entries) > 0 {
+		return m.entries
+	}
+	entries := make([]branchEntry, 0, len(m.branches))
+	for _, branch := range m.branches {
+		entries = append(entries, remoteBranchEntry(branch))
+	}
+	return entries
+}
+
+func (m BranchModel) visibleEntries() []branchEntry {
+	var rows []branchEntry
+	for _, entry := range m.displayEntries() {
+		if !m.originFilter[entry.origin] {
+			continue
+		}
+		if entry.branch().Matches(m.filter.Value(), m.creator.Value()) {
+			rows = append(rows, entry)
 		}
 	}
 	return rows
+}
+
+func (m BranchModel) visible() []azdo.Branch {
+	entries := m.visibleEntries()
+	rows := make([]azdo.Branch, 0, len(entries))
+	for _, entry := range entries {
+		rows = append(rows, entry.branch())
+	}
+	return rows
+}
+
+func (m BranchModel) selectedRemoteBranches() []azdo.Branch {
+	var selected []azdo.Branch
+	for _, entry := range m.displayEntries() {
+		if entry.selectable() && m.isSelected(entry) {
+			selected = append(selected, entry.branch())
+		}
+	}
+	return selected
+}
+
+func (m BranchModel) isSelected(entry branchEntry) bool {
+	return m.selected[entry.key()] || (entry.selectable() && m.selected[entry.branch().Name])
+}
+
+func (m *BranchModel) toggleOrigin(origin branchOrigin) {
+	if m.originFilter == nil {
+		m.originFilter = allBranchOrigins()
+	}
+	m.originFilter[origin] = !m.originFilter[origin]
+	if !m.originFilter[branchOriginRemote] && !m.originFilter[branchOriginLocal] && !m.originFilter[branchOriginWorktree] {
+		m.originFilter = allBranchOrigins()
+	}
+	m.cursor = 0
 }
 
 func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -155,6 +216,8 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.busy = false
 		if v.err != nil {
+			m.branches = nil
+			m.entries = nil
 			m.err = v.err.Error()
 			return m, nil
 		}
@@ -164,6 +227,7 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.repos = v.repos
 		} else {
 			m.branches = v.branches
+			m.entries = v.entries
 		}
 		return m, nil
 	case branchReviewed:
@@ -303,10 +367,30 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cancel != nil {
 				m.cancel()
 			}
+			if m.stage == "review" {
+				m.stage = "list"
+				m.reviewed = nil
+				m.confirmation.SetValue("")
+				m.err = ""
+				return m, nil
+			}
+			if m.stage == "list" && len(m.repos) > 0 {
+				m.stage = "repos"
+				m.cursor = 0
+				m.selected = map[string]bool{}
+				m.err = ""
+				return m, nil
+			}
+			if m.stage == "results" {
+				m.stage = "list"
+				m.cursor = 0
+				m.err = ""
+				return m, nil
+			}
 			if m.returnToCatalog {
 				return m, func() tea.Msg { return branchExitMsg{} }
 			}
-			return m, tea.Quit
+			return m, func() tea.Msg { return branchExitMsg{} }
 		case "up", "k":
 			m.cursor = max(0, m.cursor-1)
 		case "down", "j":
@@ -332,7 +416,20 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.stage == "list" {
 				m.filter.SetValue("")
 				m.creator.SetValue("")
+				m.originFilter = allBranchOrigins()
 				m.cursor = 0
+			}
+		case "R":
+			if m.stage == "list" {
+				m.toggleOrigin(branchOriginRemote)
+			}
+		case "L":
+			if m.stage == "list" {
+				m.toggleOrigin(branchOriginLocal)
+			}
+		case "W":
+			if m.stage == "list" {
+				m.toggleOrigin(branchOriginWorktree)
 			}
 		case "b":
 			if !m.demo {
@@ -354,12 +451,25 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case " ":
 			if m.stage == "list" {
-				rows := m.visible()
+				rows := m.visibleEntries()
 				if m.cursor < len(rows) {
-					name := rows[m.cursor].Name
-					m.selected[name] = !m.selected[name]
-					if !m.selected[name] {
-						delete(m.selected, name)
+					entry := rows[m.cursor]
+					if !entry.selectable() {
+						m.err = "Branches locais e de worktree são só de leitura; selecciona uma branch remota."
+						return m, nil
+					}
+					key := entry.key()
+					m.selected[key] = !m.selected[key]
+					if !m.selected[key] {
+						delete(m.selected, key)
+					}
+				}
+			}
+		case "a":
+			if m.stage == "list" {
+				for _, entry := range m.visibleEntries() {
+					if entry.selectable() {
+						m.selected[entry.key()] = true
 					}
 				}
 			}
@@ -368,15 +478,11 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.repo = m.repos[m.cursor]
 				m.filter.SetValue("")
 				m.creator.SetValue("")
+				m.originFilter = allBranchOrigins()
 				return m.load()
 			}
 			if m.stage == "list" {
-				var selected []azdo.Branch
-				for _, b := range m.branches {
-					if m.selected[b.Name] {
-						selected = append(selected, b)
-					}
-				}
+				selected := m.selectedRemoteBranches()
 				if len(selected) == 0 {
 					m.err = "Selecciona branches com espaço."
 					return m, nil
@@ -421,6 +527,7 @@ func (m BranchModel) load() (BranchModel, tea.Cmd) {
 		return m, nil
 	}
 	m.branches = nil
+	m.entries = nil
 	if m.api == nil {
 		m.err = "Cliente sem suporte de branches."
 		return m, nil
@@ -431,7 +538,18 @@ func (m BranchModel) load() (BranchModel, tea.Cmd) {
 		ctx, cancel := context.WithTimeout(m.opCtx, 45*time.Second)
 		defer cancel()
 		branches, err := m.api.ListBranches(ctx, m.project, m.repo.ID)
-		return branchLoaded{token: token, branches: branches, err: err}
+		if err != nil {
+			return branchLoaded{token: token, err: err}
+		}
+		entries := make([]branchEntry, 0, len(branches))
+		for _, branch := range branches {
+			entries = append(entries, remoteBranchEntry(branch))
+		}
+		local := discoverLocalBranches(ctx, m.workingDirectory)
+		if repositoriesMatch(m.repo.RemoteURL, local.remoteURL...) {
+			entries = append(entries, local.entries...)
+		}
+		return branchLoaded{token: token, branches: branches, entries: entries}
 	}
 }
 
@@ -439,16 +557,17 @@ func branchTableLayout(width int, stage string) (int, []int, []string) {
 	inner := max(1, width-4)
 	switch stage {
 	case "list":
-		if inner < 34 {
-			return inner, []int{4, max(1, inner-7)}, []string{"SEL", "BRANCH"}
+		if inner < 48 {
+			return inner, []int{4, max(1, inner-7)}, []string{"SEL", "BRANCH / ORIGEM"}
 		}
-		creatorWidth := min(28, max(10, inner/3))
-		branchWidth := inner - 10 - creatorWidth
-		if branchWidth < 16 {
-			creatorWidth = max(8, inner-10-16)
-			branchWidth = inner - 10 - creatorWidth
+		originWidth := min(9, max(7, inner/6))
+		creatorWidth := min(20, max(12, inner/4))
+		branchWidth := inner - 13 - originWidth - creatorWidth
+		if branchWidth < 14 {
+			creatorWidth = max(10, creatorWidth-(14-branchWidth))
+			branchWidth = inner - 13 - originWidth - creatorWidth
 		}
-		return inner, []int{4, branchWidth, creatorWidth}, []string{"SEL", "BRANCH", "CRIADOR"}
+		return inner, []int{4, originWidth, branchWidth, creatorWidth}, []string{"SEL", "ORIGEM", "BRANCH", "CRIADOR"}
 	case "review":
 		statusWidth := min(18, max(8, inner/3))
 		return inner, []int{max(1, inner-3-statusWidth), statusWidth}, []string{"BRANCH", "ESTADO"}
@@ -517,13 +636,42 @@ func branchResultCells(result string) []string {
 	return []string{result}
 }
 
+func (m BranchModel) breadcrumb() string {
+	parts := []string{"AZPIPE", m.project, "Repositórios"}
+	if m.repo.Name != "" {
+		parts = append(parts, m.repo.Name)
+	}
+	switch m.stage {
+	case "list":
+		parts = append(parts, "Branches")
+	case "review":
+		parts = append(parts, "Revisão")
+	case "results":
+		parts = append(parts, "Resultados")
+	}
+	return catalogDetailStyle.Render(strings.Join(parts, " / "))
+}
+
+func (m BranchModel) originFiltersLabel() string {
+	labels := []string{}
+	for _, origin := range []branchOrigin{branchOriginRemote, branchOriginLocal, branchOriginWorktree} {
+		if m.originFilter[origin] {
+			labels = append(labels, string(origin))
+		}
+	}
+	if len(labels) == 0 {
+		return "nenhuma"
+	}
+	return strings.Join(labels, ", ")
+}
+
 func (m BranchModel) View() string {
 	frameWidth := max(10, m.width)
 	if m.showHelp {
-		return section("BRANCHES · AJUDA", "\n/   Filtrar pelo nome\nu   Filtrar pelo criador\nc   Limpar filtros\n\nr   Actualizar\nb   Escolher repositório\n←/→ Percorrer detalhe e erros\n\nEsc Voltar\n?   Fechar ajuda", frameWidth)
+		return section("BRANCHES · AJUDA", "\n/   Filtrar pelo nome\nu   Filtrar pelo criador\nR   Mostrar/ocultar remotas\nL   Mostrar/ocultar locais\nW   Mostrar/ocultar worktrees\na   Seleccionar todas as remotas visíveis\nc   Limpar filtros\n\nr   Actualizar\nb   Escolher repositório\n←/→ Percorrer detalhe e erros\n\nEsc Voltar\nq   Sair\n?   Fechar ajuda", frameWidth)
 	}
 	inner, widths, headers := branchTableLayout(frameWidth, m.stage)
-	lines := []string{catalogTitleStyle.Render(truncateWidth("BRANCHES · "+m.project+" / "+m.repo.Name, frameWidth)), ""}
+	lines := []string{catalogTitleStyle.Render(truncateWidth("GESTÃO DE BRANCHES", frameWidth)), m.breadcrumb(), ""}
 	var tableRows [][]string
 	var total int
 	var detail string
@@ -531,7 +679,7 @@ func (m BranchModel) View() string {
 	help := "↑/↓ navegar · enter abrir · r actualizar · q sair"
 	switch m.stage {
 	case "repos":
-		lines = append(lines, "Escolhe um repositório", "")
+		lines = append(lines, "Escolhe um repositório para abrir as branches", "")
 		tableTitle = "REPOSITÓRIOS"
 		total = len(m.repos)
 		for _, repo := range m.repos {
@@ -542,26 +690,31 @@ func (m BranchModel) View() string {
 			detail = fmt.Sprintf("Repositório: %s\nBranch default: %s", repo.Name, repo.DefaultBranch)
 		}
 	case "list":
-		lines = append(lines, "Selecciona com espaço. Enter revê; ainda não elimina.", m.filter.View(), m.creator.View(), "")
+		lines = append(lines, "Selecciona com espaço. Enter revê apenas branches remotas.", "Origens visíveis: "+m.originFiltersLabel(), m.filter.View(), m.creator.View(), "")
 		tableTitle = "BRANCHES"
-		visible := m.visible()
+		visible := m.visibleEntries()
 		total = len(visible)
-		for _, b := range visible {
+		for _, entry := range visible {
+			b := entry.branch()
 			mark := "[ ]"
-			if m.selected[b.Name] {
+			if m.isSelected(entry) {
 				mark = "[x]"
 			}
-			values := []string{mark, strings.TrimPrefix(b.Name, "refs/heads/"), branchCreator(b)}
+			if !entry.selectable() {
+				mark = "[-]"
+			}
+			values := []string{mark, entry.originLabel(), strings.TrimPrefix(b.Name, "refs/heads/"), branchCreator(b)}
 			if len(widths) == 2 {
-				values = values[:2]
+				values = []string{values[0], values[1] + " · " + values[2]}
 			}
 			tableRows = append(tableRows, values)
 		}
 		if m.cursor < total {
-			b := visible[m.cursor]
-			detail = fmt.Sprintf("Branch: %s\nEstado: %s\nCriador: %s\nSHA: %s", b.Name, branchState(b), branchCreator(b), b.ObjectID)
+			entry := visible[m.cursor]
+			b := entry.branch()
+			detail = fmt.Sprintf("Origem: %s\nLocal: %s\nBranch: %s\nEstado: %s\nCriador: %s\nSHA: %s", entry.originLabel(), entry.locationLabel(), b.Name, branchState(b), branchCreator(b), b.ObjectID)
 		}
-		help = "espaço seleccionar · enter rever · ? mais acções · q sair"
+		help = "espaço seleccionar remote · a todas as remote · R/L/W filtrar origem · enter rever · esc anterior · q sair"
 	case "review":
 		lines = append(lines, "REVER ELIMINAÇÃO · branches remotas", "Confirma o repositório, os nomes e os SHAs.", "Isto não confirma que os commits já foram integrados.", "")
 		tableTitle = "REVISÃO"
@@ -592,7 +745,7 @@ func (m BranchModel) View() string {
 		if m.cursor < total {
 			detail = m.results[m.cursor]
 		}
-		help = "↑/↓ navegar · r actualizar branches · b repos · q sair"
+		help = "↑/↓ navegar · r actualizar branches · b repos · esc anterior · q sair"
 	}
 	reserve := 16
 	if m.stage == "review" && !m.demo {
@@ -613,7 +766,7 @@ func (m BranchModel) View() string {
 	selectedRows := map[int]bool{}
 	if m.stage == "list" {
 		for index := start; index < end; index++ {
-			if m.selected[m.visible()[index].Name] {
+			if m.isSelected(m.visibleEntries()[index]) {
 				selectedRows[index-start] = true
 			}
 		}
@@ -635,7 +788,7 @@ func (m BranchModel) View() string {
 	if m.stage == "list" {
 		visibleSelected := 0
 		for _, b := range m.visible() {
-			if m.selected[b.Name] {
+			if m.isSelected(remoteBranchEntry(b)) {
 				visibleSelected++
 			}
 		}

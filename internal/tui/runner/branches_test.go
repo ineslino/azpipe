@@ -187,6 +187,54 @@ func TestBranchFiltersRetainSelectionAndFramesFit(t *testing.T) {
 	}
 }
 
+func TestBranchSelectAllVisibleAndEscapeReturnsToRepositories(t *testing.T) {
+	m := NewBranchDemo()
+	m.returnToCatalog = false
+	m.repos = []azdo.Repository{{ID: "demo", Name: "sample-repo"}}
+	m.filter.SetValue("catalog")
+	updated, command := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	m = updated.(BranchModel)
+	if command != nil || len(m.selected) != len(m.visible()) {
+		t.Fatalf("select all selected %d of %d visible branches", len(m.selected), len(m.visible()))
+	}
+	updated, command = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = updated.(BranchModel)
+	if command != nil || m.stage != "repos" {
+		t.Fatalf("escape did not return to repositories: stage=%s", m.stage)
+	}
+}
+
+func TestStandaloneBranchEscapeReturnsToContext(t *testing.T) {
+	m := NewBranchDemo()
+	m.returnToCatalog = false
+	updated, command := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = updated.(BranchModel)
+	if command == nil {
+		t.Fatal("standalone escape did not return to context")
+	}
+	app := AppModel{branchBrowser: &m, screen: ScreenContext}
+	updatedApp, _ := app.Update(command())
+	if updatedApp.(AppModel).branchBrowser != nil || updatedApp.(AppModel).screen != ScreenContext {
+		t.Fatal("standalone escape did not restore context")
+	}
+}
+
+func TestBranchOriginsFilterAndLocalEntriesAreReadOnly(t *testing.T) {
+	m := NewBranchDemo()
+	local := localBranchEntry("feat/local", strings.Repeat("b", 40), "/tmp/local", branchOriginLocal)
+	worktree := localBranchEntry("feat/worktree", strings.Repeat("c", 40), "/tmp/worktree", branchOriginWorktree)
+	m.entries = append(m.entries, local, worktree)
+	m.originFilter = map[branchOrigin]bool{branchOriginLocal: true}
+	if got := m.visibleEntries(); len(got) != 1 || got[0].origin != branchOriginLocal {
+		t.Fatalf("local filter = %#v", got)
+	}
+	m.cursor = 0
+	m, command := branchKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" ")})
+	if command != nil || len(m.selected) != 0 || m.err == "" {
+		t.Fatal("local branch became selectable")
+	}
+}
+
 func TestBranchListingFailureClearsPreviousRepository(t *testing.T) {
 	f := &branchFake{fail: true}
 	m := NewBranchDemo()

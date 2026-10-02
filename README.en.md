@@ -85,6 +85,7 @@ Use `AZDO_PAT` injected by your credential mechanism and `AZDO_ORG` for context,
 | Key | Action |
 | --- | --- |
 | `a` / `?` | Actions and help menu, with descriptions and reasons for unavailable options |
+| `A` | Select all visible pipelines |
 | Arrows / `j` / `k` | Navigate |
 | `/` / Space | Filter / select |
 | `m` / `P` / `R` | Toggle mode / PLAN for selection / RUN for selection |

@@ -2,7 +2,9 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -14,6 +16,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/ineslino/azpipe/internal/azdo"
 	domainrunner "github.com/ineslino/azpipe/internal/runner"
+	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
 )
 
 // ClientFactory creates an authenticated client after the operator submits an organization.
@@ -26,6 +29,7 @@ type ContextDefaults struct {
 }
 
 type contextSubmitMsg struct {
+	generation   uint64
 	organization string
 	project      string
 }
@@ -56,17 +60,22 @@ const (
 )
 
 type contextModel struct {
-	width, height  int
-	branchesOnly   bool
-	errorScroll    int
-	organization   textinput.Model
-	project        textinput.Model // retained for compatibility with the non-interactive bootstrap contract
-	projects       []azdo.Project
-	projectCursor  int
-	projectDefault string
-	focus          int
-	loading        bool
-	err            string
+	generation       uint64
+	width, height    int
+	branchesOnly     bool
+	errorScroll      int
+	organization     textinput.Model
+	project          textinput.Model // retained for compatibility with the non-interactive bootstrap contract
+	projects         []azdo.Project
+	projectCursor    int
+	projectDefault   string
+	projectSearch    textinput.Model
+	projectSearching bool
+	focus            int
+	loading          bool
+	err              string
+	recovery         string
+	notice           string
 }
 
 func newContextModel(defaults ContextDefaults) contextModel {
@@ -83,6 +92,12 @@ func newContextModel(defaults ContextDefaults) contextModel {
 	project := textinput.New()
 	project.SetValue(defaults.Project)
 	project.Blur()
+	search := textinput.New()
+	search.Prompt = "Procurar: "
+	search.Placeholder = "projecto ou ID · / editar"
+	search.CharLimit = 256
+	search.TextStyle, search.PlaceholderStyle = catalogTextStyle, catalogDetailStyle
+	search.PromptStyle = keyStyle
 
 	return contextModel{
 		width:          defaultWidth,
@@ -90,12 +105,24 @@ func newContextModel(defaults ContextDefaults) contextModel {
 		organization:   organization,
 		project:        project,
 		projectDefault: strings.TrimSpace(defaults.Project),
+		projectSearch:  search,
 	}
 }
 
 func (m contextModel) update(msg tea.Msg) (contextModel, tea.Cmd) {
 	key, isKey := msg.(tea.KeyMsg)
 	if isKey {
+		if m.projectSearching {
+			if key.Type == tea.KeyEsc || key.Type == tea.KeyEnter {
+				m.projectSearching = false
+				m.projectSearch.Blur()
+				return m, nil
+			}
+			var cmd tea.Cmd
+			m.projectSearch, cmd = m.projectSearch.Update(key)
+			m.selectVisibleProject()
+			return m, cmd
+		}
 		if m.err != "" {
 			if key.String() == "pgdown" {
 				m.errorScroll++
@@ -123,34 +150,55 @@ func (m contextModel) update(msg tea.Msg) (contextModel, tea.Cmd) {
 			return m, nil
 		}
 		if m.focus == contextProjectFocus && len(m.projects) > 0 {
+			if key.Type == tea.KeyRunes && !key.Alt && len(key.Runes) > 0 && key.Runes[0] == '/' {
+				m.projectSearching = true
+				focus := m.projectSearch.Focus()
+				if len(key.Runes) > 1 {
+					var input tea.Cmd
+					m.projectSearch, input = m.projectSearch.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: key.Runes[1:], Paste: key.Paste})
+					m.selectVisibleProject()
+					return m, tea.Batch(focus, input)
+				}
+				return m, focus
+			}
+			indexes := m.visibleProjectIndexes()
+			position := m.visibleProjectPosition(indexes)
 			switch key.String() {
+			case "c":
+				m.projectSearch.SetValue("")
+				m.selectVisibleProject()
+				return m, nil
 			case "up", "k", "shift+tab":
-				m.projectCursor = max(0, m.projectCursor-1)
-				return m, nil
+				position--
 			case "down", "j", "tab":
-				m.projectCursor = min(len(m.projects), m.projectCursor+1)
-				return m, nil
+				position++
 			case "pgup":
-				m.projectCursor = max(0, m.projectCursor-m.projectCapacity())
-				return m, nil
+				position -= m.projectCapacity()
 			case "pgdown":
-				m.projectCursor = min(len(m.projects), m.projectCursor+m.projectCapacity())
-				return m, nil
+				position += m.projectCapacity()
 			case "home":
-				m.projectCursor = 0
-				return m, nil
+				position = 0
 			case "end":
-				m.projectCursor = len(m.projects)
-				return m, nil
+				position = len(indexes) - 1
 			case "enter":
+				if len(indexes) == 0 {
+					return m, nil
+				}
 				m.err = ""
+				m.recovery, m.notice = "", ""
 				m.errorScroll = 0
 				m.loading = true
 				organization := strings.TrimSpace(m.organization.Value())
 				return m, func() tea.Msg {
-					return contextSubmitMsg{organization: organization, project: m.selectedProject()}
+					return contextSubmitMsg{generation: m.generation, organization: organization, project: m.selectedProject()}
 				}
+			default:
+				return m, nil
 			}
+			if len(indexes) > 0 {
+				m.projectCursor = indexes[min(max(0, position), len(indexes)-1)]
+			}
+			return m, nil
 		}
 		switch key.String() {
 		case "tab", "down":
@@ -165,18 +213,24 @@ func (m contextModel) update(msg tea.Msg) (contextModel, tea.Cmd) {
 			organization := strings.TrimSpace(m.organization.Value())
 			if organization == "" {
 				m.err = "A organização é obrigatória."
+				m.recovery = "Introduz o nome ou o URL da organização e prime Enter."
 				return m, nil
 			}
 			m.err = ""
+			m.recovery, m.notice = "", ""
 			m.errorScroll = 0
 			m.loading = true
 			return m, func() tea.Msg {
-				return contextSubmitMsg{organization: organization}
+				return contextSubmitMsg{generation: m.generation, organization: organization}
 			}
 		}
 	}
 
 	var cmd tea.Cmd
+	if m.projectSearching {
+		m.projectSearch, cmd = m.projectSearch.Update(msg)
+		return m, cmd
+	}
 	if m.focus == contextOrganizationFocus {
 		m.organization, cmd = m.organization.Update(msg)
 	}
@@ -186,6 +240,8 @@ func (m contextModel) update(msg tea.Msg) (contextModel, tea.Cmd) {
 func (m *contextModel) setFocus(focus int) {
 	m.focus = focus
 	if focus == contextOrganizationFocus {
+		m.projectSearch.Blur()
+		m.projectSearching = false
 		m.project.Blur()
 		m.organization.Focus()
 		return
@@ -195,6 +251,9 @@ func (m *contextModel) setFocus(focus int) {
 }
 
 func (m *contextModel) setProjects(projects []azdo.Project) {
+	m.projectSearch.SetValue("")
+	m.projectSearch.Blur()
+	m.projectSearching = false
 	m.projects = append([]azdo.Project(nil), projects...)
 	sort.SliceStable(m.projects, func(i, j int) bool {
 		return strings.ToLower(m.projects[i].Name) < strings.ToLower(m.projects[j].Name)
@@ -212,6 +271,38 @@ func (m *contextModel) setProjects(projects []azdo.Project) {
 	}
 }
 
+func (m contextModel) visibleProjectIndexes() []int {
+	query := strings.ToLower(strings.TrimSpace(m.projectSearch.Value()))
+	var indexes []int
+	if query == "" || strings.Contains(strings.ToLower(allProjectsLabel), query) {
+		indexes = append(indexes, 0)
+	}
+	for index, project := range m.projects {
+		if query == "" || strings.Contains(strings.ToLower(project.Name), query) || strings.Contains(strings.ToLower(project.ID), query) {
+			indexes = append(indexes, index+1)
+		}
+	}
+	return indexes
+}
+
+func (m contextModel) visibleProjectPosition(indexes []int) int {
+	for position, index := range indexes {
+		if index == m.projectCursor {
+			return position
+		}
+	}
+	return 0
+}
+
+func (m *contextModel) selectVisibleProject() {
+	indexes := m.visibleProjectIndexes()
+	if len(indexes) == 0 {
+		m.projectCursor = -1
+		return
+	}
+	m.projectCursor = indexes[m.visibleProjectPosition(indexes)]
+}
+
 func (m contextModel) selectedProject() string {
 	if m.projectCursor == 0 {
 		return domainrunner.AllProjects
@@ -224,6 +315,9 @@ func (m contextModel) selectedProject() string {
 }
 
 func (m contextModel) selectedProjectLabel() string {
+	if m.projectCursor < 0 {
+		return "Nenhum projecto"
+	}
 	if m.projectCursor == 0 {
 		return allProjectsLabel
 	}
@@ -237,12 +331,13 @@ func (m contextModel) selectedProjectLabel() string {
 func (m contextModel) view() string {
 	inner := max(1, m.width-4)
 	if len(m.projects) > 0 {
+		indexes := m.visibleProjectIndexes()
 		capacity := m.projectCapacity()
-		start := max(0, m.projectCursor-capacity+1)
-		end := min(len(m.projects)+1, start+capacity)
+		start := max(0, m.visibleProjectPosition(indexes)-capacity+1)
+		end := min(len(indexes), start+capacity)
 		widths := []int{3, max(1, inner-21), 12}
 		var rows []string
-		for index := start; index < end; index++ {
+		for _, index := range indexes[start:end] {
 			label, scope := allProjectsLabel, "ORGANIZAÇÃO"
 			if index > 0 {
 				label, scope = m.projects[index-1].Name, "PROJECTO"
@@ -260,6 +355,9 @@ func (m contextModel) view() string {
 	if m.loading {
 		body += "\n" + catalogDetailStyle.Render("A validar credenciais e a carregar projectos...")
 	}
+	if m.notice != "" {
+		body += "\n" + catalogDetailStyle.Render(ansi.Wrap(m.notice, inner, ""))
+	}
 	return m.frame(section("1 · LIGAR AO AZURE DEVOPS", body, m.width))
 }
 
@@ -268,6 +366,9 @@ func (m contextModel) projectView(rows []string, start, end int) string {
 	contextWidths := []int{12, max(1, inner-15)}
 	context := tableCells(contextWidths, catalogDetailStyle.Render("Organização"), m.organization.Value()) + "\n" +
 		tableCells(contextWidths, catalogDetailStyle.Render("Sessão"), successStyle.Render("Autenticada")+fmt.Sprintf(" · %d projectos", len(m.projects)))
+	if m.err != "" && m.height < 28 {
+		context = catalogTextStyle.Render(fmt.Sprintf("%s · %d projectos · Autenticada", m.organization.Value(), len(m.projects)))
+	}
 	widths := []int{3, max(1, inner-21), 12}
 	selected := metadata("Seleccionado", m.selectedProjectLabel())
 	if m.projectCursor == 0 {
@@ -277,15 +378,30 @@ func (m contextModel) projectView(rows []string, start, end int) string {
 		}
 		selected += "\n" + catalogDetailStyle.Render(hint)
 	}
-	table := []string{catalogHeaderStyle.Width(inner).Render(tableCells(widths, "SEL", "PROJECTO", "ÂMBITO"))}
+	var table []string
+	if m.err == "" || m.projectSearch.Value() != "" {
+		m.projectSearch.Width = max(8, inner-10)
+		table = append(table, m.projectSearch.View())
+	}
+	table = append(table, catalogHeaderStyle.Width(inner).Render(tableCells(widths, "SEL", "PROJECTO", "ÂMBITO")))
 	table = append(table, rows...)
+	if len(m.visibleProjectIndexes()) == 0 {
+		table = append(table, catalogDetailStyle.Render("Nenhum projecto corresponde à pesquisa. c limpa o filtro."))
+	}
 	table = append(table, borderStyle.Render(strings.Repeat("─", inner)), ansi.Wrap(selected, inner, ""))
 	if m.loading {
-		table = append(table, catalogDetailStyle.Render("A abrir a selecção..."))
+		operation := "A carregar pipelines do projecto seleccionado..."
+		if m.projectCursor == 0 {
+			operation = fmt.Sprintf("A carregar pipelines de %d projectos...", len(m.projects))
+		}
+		table = append(table, catalogDetailStyle.Render(ansi.Wrap(operation, inner, "")))
+	}
+	if m.notice != "" {
+		table = append(table, catalogDetailStyle.Render(ansi.Wrap(m.notice, inner, "")))
 	}
 	return m.frame(
 		section("CONTEXTO", context, m.width),
-		section(fmt.Sprintf("2 · ESCOLHER PROJECTO · %d–%d / %d", start+1, end, len(m.projects)+1), strings.Join(table, "\n"), m.width),
+		section(fmt.Sprintf("2 · ESCOLHER PROJECTO · %d–%d / %d", min(start+1, len(m.visibleProjectIndexes())), end, len(m.visibleProjectIndexes())), strings.Join(table, "\n"), m.width),
 	)
 }
 
@@ -297,19 +413,22 @@ func (m contextModel) projectCapacity() int {
 
 func (m contextModel) frame(panels ...string) string {
 	inner := max(1, m.width-4)
-	brand := wordmarkStyle.Render("AZPIPE") + "  " + catalogDetailStyle.Render("AZURE DEVOPS / TUI")
+	compactBrand := wordmarkStyle.Render("AZPIPE") + "  " + catalogDetailStyle.Render("AZURE DEVOPS / TUI")
+	brand := compactBrand
 	if len(m.projects) == 0 && m.width >= 60 && m.height >= 24 {
 		brand = welcomeBrand()
 	}
 	if m.err != "" {
 		count := 3
 		if len(m.projects) > 0 {
-			count = 2
-			if m.height < defaultHeight {
-				count = 1
-			}
+			count = 1
 		}
-		body := catalogWarningStyle.Render(textPage(m.err, inner, m.errorScroll, count)) + "\n" + shortcutBar(inner, "PgUp/PgDn percorrer erro")
+		recovery := m.recovery
+		if recovery == "" {
+			recovery = "Confirma a organização e o acesso com a sessão configurada. Depois tenta novamente."
+		}
+		body := catalogWarningStyle.Render(textPage(m.err, inner, m.errorScroll, count)) + "\n" +
+			catalogTitleStyle.Render("COMO RECUPERAR") + "\n" + catalogDetailStyle.Render(ansi.Wrap(recovery, inner, "")) + "\n" + shortcutBar(inner, "PgUp/PgDn percorrer erro")
 		panels = append(panels, section("ERRO", body, m.width))
 	}
 	help := shortcutBar(inner, "enter ligar", ":q sair")
@@ -318,11 +437,20 @@ func (m contextModel) frame(panels ...string) string {
 		if m.branchesOnly {
 			primary = "enter abrir repositórios"
 		}
-		help = shortcutBar(inner, primary) + "\n" +
-			shortcutBar(inner, "↑/↓ escolher", "PgUp/PgDn página", "Home/End extremos", "esc mudar organização", ":q sair")
+		help = shortcutBar(inner, primary) + "\n" + shortcutBar(inner, "↑/↓ escolher", "/ procurar", "c limpar", "esc mudar organização", ":q sair")
+		if m.height >= 28 && m.err == "" {
+			help += "\n" + shortcutBar(inner, "PgUp/PgDn página", "Home/End extremos")
+		} else if m.err == "" {
+			help = shortcutBar(inner, primary) + "\n" + shortcutBar(inner, "↑/↓ escolher", "PgUp/PgDn página", "/ procurar", "esc mudar organização", ":q sair")
+		}
+		if m.projectSearching {
+			help = shortcutBar(inner, "enter terminar pesquisa", "esc voltar à lista", ":q sair")
+		} else if m.err != "" {
+			help = shortcutBar(inner, primary) + "\n" + shortcutBar(inner, "esc mudar organização", ":q sair")
+		}
 	}
 	if m.loading {
-		help = catalogDetailStyle.Render("Aguarda o carregamento.") + "\n" + shortcutBar(inner, ":q sair")
+		help = shortcutBar(inner, "esc cancelar leitura", ":q sair")
 	}
 	panels = append(panels, section("ACÇÕES", help, m.width))
 	prefix := brand + "\n\n"
@@ -330,11 +458,49 @@ func (m contextModel) frame(panels ...string) string {
 	if lipgloss.Height(view) > m.height {
 		view = prefix + strings.Join(panels, "\n")
 	}
+	if lipgloss.Height(view) > m.height {
+		view = brand + "\n" + strings.Join(panels, "\n")
+	}
+	if lipgloss.Height(view) > m.height {
+		view = compactBrand + "\n" + strings.Join(panels, "\n")
+	}
 	return view
 }
 
-func loadProjects(factory ClientFactory, organization string, token operationToken) tea.Cmd {
+func (m *contextModel) setError(err error) {
+	m.err = err.Error()
+	m.recovery = "Confirma a organização e a sessão configurada. Renova as credenciais pelo login aprovado, se necessário."
+	if errors.Is(err, context.DeadlineExceeded) {
+		m.recovery = "Tempo de espera excedido. Verifica a ligação à rede e tenta novamente."
+		return
+	}
+	var pointer *azuredevops.WrappedError
+	var value azuredevops.WrappedError
+	status := 0
+	if errors.As(err, &pointer) && pointer != nil && pointer.StatusCode != nil {
+		status = *pointer.StatusCode
+	} else if errors.As(err, &value) && value.StatusCode != nil {
+		status = *value.StatusCode
+	}
+	switch status {
+	case http.StatusUnauthorized:
+		m.recovery = "Renova as credenciais pelo login aprovado e confirma a sessão configurada. Depois tenta novamente."
+	case http.StatusForbidden:
+		m.recovery = "Verifica as permissões da sessão para esta organização e projecto. Depois tenta novamente."
+	case http.StatusNotFound:
+		m.recovery = "Confirma a organização e o projecto. Se existirem, verifica o acesso da sessão."
+	case http.StatusTooManyRequests:
+		m.recovery = "Aguarda antes de repetir. O Azure DevOps limitou a frequência dos pedidos."
+	}
+}
+
+func loadProjects(parent context.Context, factory ClientFactory, organization string, token operationToken) tea.Cmd {
 	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(parent, 30*time.Second)
+		defer cancel()
+		if err := ctx.Err(); err != nil {
+			return projectsLoadedMsg{token: token, organization: organization, err: err}
+		}
 		if factory == nil {
 			return projectsLoadedMsg{token: token, organization: organization, err: fmt.Errorf("não foi possível criar o cliente: factory indisponível")}
 		}
@@ -342,8 +508,9 @@ func loadProjects(factory ClientFactory, organization string, token operationTok
 		if err != nil {
 			return projectsLoadedMsg{token: token, organization: organization, err: fmt.Errorf("não foi possível autenticar na organização: %w", err)}
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
+		if err := ctx.Err(); err != nil {
+			return projectsLoadedMsg{token: token, organization: organization, err: err}
+		}
 		projects, err := client.ListProjects(ctx)
 		if err != nil {
 			return projectsLoadedMsg{token: token, organization: organization, client: client, err: fmt.Errorf("não foi possível listar projectos: %w", err)}
@@ -352,13 +519,16 @@ func loadProjects(factory ClientFactory, organization string, token operationTok
 	}
 }
 
-func loadSelectedProject(client azdo.Client, organization, project string, projects []azdo.Project, token operationToken) tea.Cmd {
+func loadSelectedProject(parent context.Context, client azdo.Client, organization, project string, projects []azdo.Project, token operationToken) tea.Cmd {
 	return func() tea.Msg {
 		if client == nil {
 			return contextLoadedMsg{token: token, organization: organization, project: project, err: fmt.Errorf("cliente Azure DevOps indisponível")}
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
 		defer cancel()
+		if err := ctx.Err(); err != nil {
+			return contextLoadedMsg{token: token, organization: organization, project: project, err: err}
+		}
 		var (
 			pipelines []azdo.Pipeline
 			err       error
@@ -390,6 +560,10 @@ func listAllProjectPipelines(ctx context.Context, client azdo.Client, projects [
 		go func() {
 			defer group.Done()
 			for index := range jobs {
+				if err := ctx.Err(); err != nil {
+					errorsByProject[index] = err
+					continue
+				}
 				project := projects[index].Name
 				pipelines, err := client.ListPipelines(ctx, project)
 				if err != nil {
@@ -406,6 +580,9 @@ func listAllProjectPipelines(ctx context.Context, client azdo.Client, projects [
 	}
 	close(jobs)
 	group.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	var all []azdo.Pipeline
 	for index, pipelines := range results {
@@ -425,8 +602,13 @@ func setPipelineProject(pipelines []azdo.Pipeline, project string) {
 
 // loadContext remains available for callers that already have a project value.
 // The bootstrap UI uses loadProjects followed by loadSelectedProject.
-func loadContext(factory ClientFactory, organization, project string, token operationToken) tea.Cmd {
+func loadContext(parent context.Context, factory ClientFactory, organization, project string, token operationToken) tea.Cmd {
 	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
+		defer cancel()
+		if err := ctx.Err(); err != nil {
+			return contextLoadedMsg{token: token, organization: organization, project: project, err: err}
+		}
 		if factory == nil {
 			return contextLoadedMsg{token: token, organization: organization, project: project, err: fmt.Errorf("não foi possível criar o cliente: factory indisponível")}
 		}
@@ -434,7 +616,10 @@ func loadContext(factory ClientFactory, organization, project string, token oper
 		if err != nil {
 			return contextLoadedMsg{token: token, organization: organization, project: project, err: fmt.Errorf("não foi possível criar o cliente: %w", err)}
 		}
-		pipelines, err := client.ListPipelines(context.Background(), project)
+		if err := ctx.Err(); err != nil {
+			return contextLoadedMsg{token: token, organization: organization, project: project, err: err}
+		}
+		pipelines, err := client.ListPipelines(ctx, project)
 		if err != nil {
 			return contextLoadedMsg{token: token, organization: organization, client: client, project: project, err: fmt.Errorf("não foi possível listar pipelines: %w", err)}
 		}

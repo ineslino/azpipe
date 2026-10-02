@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,6 +32,7 @@ type AppModel struct {
 	service       domainrunner.Service
 	context       contextModel
 	contextClient azdo.Client
+	contextCancel context.CancelFunc
 	catalog       CatalogModel
 	review        reviewModel
 	execution     executionModel
@@ -147,6 +149,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.branchBrowser != nil && m.branchBrowser.cancel != nil {
 					m.branchBrowser.cancel()
 				}
+				m.cancelContextLoad()
 				return m, tea.Quit
 			case commandBack:
 				return m.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -162,14 +165,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				contextCommand = false
 			}
 		}
-		startsCommand := key.Type == tea.KeyRunes && !key.Alt && len(key.Runes) > 0 && key.Runes[0] == ':'
-		if startsCommand && (!m.commandInputActive() || contextCommand) {
-			if m.screen == ScreenExecution && !m.execution.queued {
-				return m, nil
+		if (!m.commandInputActive() || contextCommand) && (m.screen != ScreenExecution || m.execution.queued) {
+			if cmd, opened := m.command.startFromKey(key, m.width); opened {
+				return m, cmd
 			}
-			cmd := m.command.start(m.width)
-			m.command.input.SetValue(string(key.Runes[1:]))
-			return m, cmd
 		}
 	}
 	if key, ok := msg.(tea.KeyMsg); ok && m.screen == ScreenExecution && !m.execution.queued {
@@ -178,7 +177,15 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	if key, ok := msg.(tea.KeyMsg); ok && (key.Type == tea.KeyCtrlC || key.Type == tea.KeyCtrlD) {
+		m.cancelContextLoad()
 		return m, tea.Quit
+	}
+	if key, ok := msg.(tea.KeyMsg); ok && key.Type == tea.KeyEsc && m.screen == ScreenContext && m.context.loading {
+		m.cancelContextLoad()
+		m.invalidateOperation()
+		m.context.loading = false
+		m.context.notice = "Leitura cancelada. Enter volta a tentar."
+		return m, nil
 	}
 	if m.library != nil {
 		return m.libraryUpdate(msg)
@@ -217,12 +224,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.catalog.warning = ""
 		return m, nil
 	case contextSubmitMsg:
-		if m.screen != ScreenContext || strings.TrimSpace(typed.organization) != strings.TrimSpace(m.context.organization.Value()) {
+		if m.screen != ScreenContext || typed.generation != m.generation || strings.TrimSpace(typed.organization) != strings.TrimSpace(m.context.organization.Value()) {
 			return m, nil
 		}
 		if typed.project == "" {
-			token := m.startOperation(organizationOperationTarget(typed.organization))
-			return m, loadProjects(m.factory, typed.organization, token)
+			ctx, token := m.startContextLoad(organizationOperationTarget(typed.organization))
+			return m, loadProjects(ctx, m.factory, typed.organization, token)
 		}
 		currentProject := m.context.selectedProject()
 		if m.branchesOnly && len(m.context.projects) > 0 {
@@ -232,6 +239,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.context.loading = false
 			if currentProject == domainrunner.AllProjects {
 				m.context.err = "Escolhe um projecto específico para gerir branches."
+				m.context.recovery = "Selecciona um projecto na tabela e prime Enter."
 				return m, nil
 			}
 			browser := NewBranchModel(m.contextClient, currentProject)
@@ -246,19 +254,19 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if contextOperationTarget(typed.organization, typed.project) != contextOperationTarget(strings.TrimSpace(m.context.organization.Value()), currentProject) {
 			return m, nil
 		}
-		token := m.startOperation(contextOperationTarget(typed.organization, typed.project))
-		m.context.loading = true
+		ctx, token := m.startContextLoad(contextOperationTarget(typed.organization, typed.project))
 		if len(m.context.projects) == 0 {
-			return m, loadContext(m.factory, typed.organization, typed.project, token)
+			return m, loadContext(ctx, m.factory, typed.organization, typed.project, token)
 		}
-		return m, loadSelectedProject(m.contextClient, typed.organization, typed.project, m.context.projects, token)
+		return m, loadSelectedProject(ctx, m.contextClient, typed.organization, typed.project, m.context.projects, token)
 	case projectsLoadedMsg:
 		if !m.accepts(ScreenContext, typed.token) || typed.token.target != organizationOperationTarget(typed.organization) || strings.TrimSpace(typed.organization) != strings.TrimSpace(m.context.organization.Value()) {
 			return m, nil
 		}
 		m.context.loading = false
+		m.cancelContextLoad()
 		if typed.err != nil {
-			m.context.err = typed.err.Error()
+			m.context.setError(typed.err)
 			return m, nil
 		}
 		m.contextClient = typed.client
@@ -266,6 +274,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.context.setProjects(typed.projects)
 		if len(typed.projects) == 0 {
 			m.context.err = "A organização não devolveu projectos acessíveis."
+			m.context.recovery = "Confirma a organização e as permissões da sessão para listar projectos."
 			m.context.setFocus(contextOrganizationFocus)
 			return m, nil
 		}
@@ -280,8 +289,9 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.context.loading = false
+		m.cancelContextLoad()
 		if typed.err != nil {
-			m.context.err = typed.err.Error()
+			m.context.setError(typed.err)
 			return m, nil
 		}
 		m.service = domainrunner.NewService(typed.client, typed.project)
@@ -394,6 +404,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.screen {
 	case ScreenContext:
 		var cmd tea.Cmd
+		m.context.generation = m.generation
 		m.context, cmd = m.context.update(msg)
 		return m, cmd
 	case ScreenCatalog:
@@ -520,7 +531,7 @@ func (m AppModel) commandInputActive() bool {
 	}
 	switch m.screen {
 	case ScreenContext:
-		return m.context.organization.Focused()
+		return m.context.organization.Focused() || m.context.projectSearching
 	case ScreenCatalog:
 		return m.catalog.input != inputNone
 	case ScreenReview:
@@ -619,6 +630,22 @@ func (m *AppModel) startOperation(target string) operationToken {
 	m.generation++
 	m.active = operationToken{generation: m.generation, target: target}
 	return m.active
+}
+
+func (m *AppModel) startContextLoad(target string) (context.Context, operationToken) {
+	m.cancelContextLoad()
+	ctx, cancel := context.WithCancel(context.Background())
+	m.contextCancel = cancel
+	m.context.loading = true
+	m.context.notice, m.context.recovery = "", ""
+	return ctx, m.startOperation(target)
+}
+
+func (m *AppModel) cancelContextLoad() {
+	if m.contextCancel != nil {
+		m.contextCancel()
+		m.contextCancel = nil
+	}
 }
 
 func (m *AppModel) invalidateOperation() {

@@ -124,10 +124,22 @@ multiple pipelines before any Azure DevOps run is created. Configured organizati
 project values are used as defaults when they match the returned context.
 
 Connection and project selection appear as two labelled steps. The project selector
-uses a table with the selected scope, visible range and total. Use `PgUp`/`PgDn` to
-move a page and `Home`/`End` to reach the first or last scope. With an error visible,
-`PgUp`/`PgDn` scroll the diagnostic instead. Esc returns to the organization field;
+uses a table with the selected scope, visible range and total. Press `/` to search
+project names or IDs; Enter or Esc finishes editing the search without opening a
+project. Press `c` to clear the filter. An empty result cannot open All projects.
+Use `PgUp`/`PgDn` to move a page and `Home`/`End` to reach the first or last visible
+scope. With an error visible, `PgUp`/`PgDn` scroll the diagnostic instead.
+Esc returns to the organization field;
 `:q` followed by Enter exits, including when typed quickly or pasted.
+
+During project or pipeline reads, Esc cancels the read and preserves the current
+input or project choice. Late results cannot reopen the catalog. An adapter identity
+check already running may finish within its own timeout. The loading message names
+the current operation; All projects includes the number of projects being read.
+Connection errors retain the original diagnostic and add recovery guidance for
+typed HTTP 401/403/404/429 and timeouts. Adapter errors without an HTTP status receive
+general organization/session guidance; the UI does not guess the failure cause or
+automatically renew credentials.
 
 In **All projects** mode, azpipe lists pipeline definitions once per accessible project
 and retains the owning project on every pipeline. The catalog can therefore filter by
@@ -141,7 +153,8 @@ that can queue a pipeline.
 
 ### Shortcuts
 
-Start with `a` or `?`: arrows choose an action and Enter opens it. Disabled actions
+Start with `a` or `?`: actions are grouped by selection, configuration, profiles/history
+and context. Arrows choose an action and Enter opens it. Disabled actions
 explain why they are unavailable and cannot be activated. Esc closes the menu
 without changing the selection. Existing shortcuts remain available in the catalog;
 the contextual footer only shows the primary actions. On review errors, select the
@@ -159,7 +172,7 @@ folder, tags and PLAN availability; `d` opens the complete metadata when values 
 | Key | Action |
 |-----|--------|
 | `j`/`k` or arrows | Move through the catalog |
-| `/` | Filter by project, name, ID, folder, type, repository, or tag |
+| `/` | Search names/IDs in the project selector; filter pipelines by project, name, ID, folder, type, repository, or tag |
 | `Space` | Select or remove the active pipeline |
 | `m` (`p` alias) | Toggle `RUN`/`PLAN` on an already selected pipeline with an explicit PLAN contract |
 | `P` / `R` | Apply PLAN / RUN to the whole selection; PLAN requires contracts for all selected pipelines |
@@ -167,16 +180,23 @@ folder, tags and PLAN availability; `d` opens the complete metadata when values 
 | `J` | Advanced JSON parameter editor |
 | `s` / `l` | Save the current selection as a profile / load a saved profile |
 | `h` | Browse previous batches in this context and resume monitoring without submitting runs |
-| `c` | Return to the project selector and change project scope |
+| `c` | Clear the project search in the selector; return to the project selector from the catalog |
 | `Enter` in a field | Finish editing and retain the filter or branch |
 | `PgUp` / `PgDn` | Page through projects, review and execution rows; arrows select an item. In login/profile errors, page through the full message |
 | `Home` / `End` | First / last scope in the project selector |
 | `d` | Open complete pipeline metadata; arrows scroll and Esc returns |
 | `b` | Edit the global branch, initially `main` |
 | `Enter` | Review the selection |
-| `Esc` | Leave the current input or return to the catalog without losing the selection |
+| `Esc` | Finish project search, cancel context reads, leave the current input or return to the catalog without losing the selection |
 | `:q` / `:quit` | Exit explicitly; plain `q` is not an exit shortcut |
 | `Ctrl+C`, `Ctrl+D` | Emergency exit without creating a run before confirmation |
+
+Branch management uses the same explicit command parser, including burst input and
+paste. While a branch operation is busy, `:q` requests cancellation and waits for
+the result; it does not claim that accepted requests were undone. Compact terminals
+group filters and actions into panels and keep the detail within the branch table.
+The active detail is paged with left/right arrows; deletion review retains the SHA
+and exact `ELIMINAR` confirmation.
 
 `PLAN` requires an explicit contract loaded from `AZPIPE_CONTRACTS` (JSON file).
 The contract identifies the organization URL, project, pipeline ID, definition

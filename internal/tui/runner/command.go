@@ -41,6 +41,15 @@ func (m *commandModel) start(width int) tea.Cmd {
 	return m.input.Focus()
 }
 
+func (m *commandModel) startFromKey(key tea.KeyMsg, width int) (tea.Cmd, bool) {
+	if key.Type != tea.KeyRunes || key.Alt || len(key.Runes) == 0 || key.Runes[0] != ':' {
+		return nil, false
+	}
+	cmd := m.start(width)
+	m.input.SetValue(string(key.Runes[1:]))
+	return cmd, true
+}
+
 func (m *commandModel) update(key tea.KeyMsg) (commandAction, tea.Cmd) {
 	if !m.active {
 		return commandHandled, nil

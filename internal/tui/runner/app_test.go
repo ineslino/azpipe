@@ -78,7 +78,7 @@ func TestAppWorkflow_RejectsStaleContextResultAndWrongTarget(t *testing.T) {
 	model = updated.(AppModel)
 	model.context.organization.SetValue("second")
 	model.context.project.SetValue("B")
-	updated, secondCmd := model.Update(contextSubmitMsg{organization: "second", project: "B"})
+	updated, secondCmd := model.Update(contextSubmitMsg{generation: model.generation, organization: "second", project: "B"})
 	model = updated.(AppModel)
 
 	updated, _ = model.Update(firstCmd())

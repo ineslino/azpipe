@@ -33,7 +33,15 @@ func TestActionsBlockExplainAndCancel(t *testing.T) {
 
 func TestActionDispatchUsesExistingBranchEditor(t *testing.T) {
 	m := NewDemoApp()
-	index := 5
+	index := -1
+	for i, action := range m.catalogActions() {
+		if action.key == "b" {
+			index = i
+		}
+	}
+	if index < 0 {
+		t.Fatal("branch action missing")
+	}
 	m.actions = &index
 	m, _ = actionKey(m, tea.KeyMsg{Type: tea.KeyEnter})
 	if m.actions != nil || m.catalog.input != inputBranch {

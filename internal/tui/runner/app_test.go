@@ -195,7 +195,9 @@ func TestAppWorkflow_PreviewErrorHidesConfirmationAndQuitIsFailClosed(t *testing
 	if !strings.Contains(view, "ERROR") || strings.Contains(view, "EXECUTAR") {
 		t.Fatalf("failed review must show ERROR without confirmation:\n%s", view)
 	}
-	_, quit := pressApp(t, model, "q")
+	model, _ = pressApp(t, model, ":")
+	model = typeApp(t, model, "q")
+	_, quit := pressApp(t, model, "enter")
 	assertQuit(t, quit)
 	if len(mock.QueueRequests) != 0 {
 		t.Fatalf("queue requests after quit = %d, want 0", len(mock.QueueRequests))
@@ -441,7 +443,9 @@ func TestExecution_QuitAfterQueueFinishedStopsLocalMonitoring(t *testing.T) {
 	model.screen = ScreenExecution
 	model.execution = executionModel{queued: true}
 
-	_, cmd := pressApp(t, model, "q")
+	model, _ = pressApp(t, model, ":")
+	model = typeApp(t, model, "q")
+	_, cmd := pressApp(t, model, "enter")
 
 	assertQuit(t, cmd)
 }

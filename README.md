@@ -94,7 +94,8 @@ Usa `AZDO_PAT` injectado pelo teu mecanismo de credenciais e `AZDO_ORG` para o c
 | `s` / `l` / `h` | Guardar perfil / carregar perfil / histórico |
 | `c` | Mudar o projecto ou voltar a **Todos os projectos** |
 | `B` | Abrir a gestão de branches do projecto e repositório seleccionados |
-| Enter / Esc | Rever / regressar sem lançar |
+| Enter / Esc | Rever / regressar sem lançar; Esc recua um nível e nunca termina a TUI |
+| `:` / `:q` | Abrir comandos / sair explicitamente |
 
 Exemplo CLI, apenas preview de um ficheiro de selecção preparado conforme o guia:
 

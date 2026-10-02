@@ -92,7 +92,7 @@ func (m reviewModel) update(msg tea.Msg) (reviewModel, tea.Cmd) {
 			}
 			m.horizontal = 0
 			return m, nil
-		case "ctrl+c", "ctrl+d", "q":
+		case "ctrl+c", "ctrl+d":
 			return m, tea.Quit
 		case "enter":
 			if m.canExecute() && m.confirmation.Value() == confirmationValue {
@@ -236,7 +236,7 @@ func (m reviewModel) view() string {
 	if m.warning != "" {
 		lines = append(lines, catalogWarningStyle.Render(m.warning))
 	}
-	lines = append(lines, shortcutBar(width, "pgup/pgdown página", "esc voltar e editar", "q sair"))
+	lines = append(lines, shortcutBar(width, "pgup/pgdown página", "esc voltar e editar", ":q sair"))
 	return strings.Join(lines, "\n")
 }
 

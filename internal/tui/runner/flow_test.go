@@ -95,7 +95,7 @@ func TestFinalUXRegressions(t *testing.T) {
 	if len(strings.Split(section("CONTEXT", c.view(), 80), "\n")) > 24 {
 		t.Fatal("project error hides footer")
 	}
-	for _, key := range []tea.KeyMsg{{Type: tea.KeyCtrlC}, {Type: tea.KeyCtrlD}, {Type: tea.KeyRunes, Runes: []rune("q")}} {
+	for _, key := range []tea.KeyMsg{{Type: tea.KeyCtrlC}, {Type: tea.KeyCtrlD}} {
 		b := NewBranchDemo()
 		b.showHelp = true
 		_, quit := b.Update(key)
@@ -118,7 +118,7 @@ func TestFinalUXRegressions(t *testing.T) {
 	m.demo = false
 	m.execution = executionModel{width: 76, height: 22}
 	view := m.View()
-	if strings.Contains(view, "esc catálogo") || strings.Contains(view, "q sair") || !strings.Contains(view, "Submissão em curso") {
+	if strings.Contains(view, "esc catálogo") || strings.Contains(view, ":q sair") || !strings.Contains(view, "Submissão em curso") {
 		t.Fatal("submitting view promises unavailable exits")
 	}
 	_, cmd = pressApp(t, m, "esc")
@@ -193,14 +193,25 @@ func TestBranchesExplainConfirmationBeforeInvalidAttempt(t *testing.T) {
 	}
 }
 
-func TestBranchesQuitDoesNotReturnToCatalog(t *testing.T) {
+func TestBranchesCommandQuitDoesNotReturnToCatalog(t *testing.T) {
 	m := NewBranchDemo()
 	m.returnToCatalog = true
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
+	m = updated.(BranchModel)
 	if cmd == nil {
-		t.Fatal("missing quit")
+		t.Fatal("missing command input")
+	}
+	for _, r := range "q" {
+		updated, next := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		m = updated.(BranchModel)
+		cmd = next
+	}
+	updated, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(BranchModel)
+	if cmd == nil {
+		t.Fatal("missing :q quit")
 	}
 	if _, ok := cmd().(tea.QuitMsg); !ok {
-		t.Fatal("q should quit")
+		t.Fatal(":q should quit")
 	}
 }

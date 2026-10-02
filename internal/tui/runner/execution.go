@@ -158,7 +158,7 @@ func (m executionModel) view() string {
 	if height == 0 {
 		height = defaultHeight
 	}
-	footer := shortcutBar(width, "↑/↓ escolher run", "←/→ detalhe", "esc catálogo", "q sair")
+	footer := shortcutBar(width, "↑/↓ escolher run", "←/→ detalhe", "esc catálogo", ":q sair")
 	if !m.queued {
 		footer = "Submissão em curso. Aguarda para voltar ou sair."
 	}
@@ -286,7 +286,7 @@ func (m executionModel) pageSize() int {
 	if !m.queued {
 		prefix++
 	}
-	footer := shortcutBar(m.width, "pgup/pgdown linhas", "←/→ detalhe", "esc catálogo", "q sair sem cancelar runs")
+	footer := shortcutBar(m.width, "pgup/pgdown linhas", "←/→ detalhe", "esc catálogo", ":q sair sem cancelar runs")
 	space := height - prefix - strings.Count(footer, "\n")
 	if height >= 28 {
 		space /= 2

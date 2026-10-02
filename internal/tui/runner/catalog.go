@@ -160,11 +160,14 @@ func (m CatalogModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.notice = ""
 	switch msg.String() {
-	case "q", "ctrl+c":
+	case "ctrl+c":
 		return m, tea.Quit
 	case "A":
 		for _, pipeline := range m.visible {
-			m.selected[domainrunner.PipelineKey(pipeline)] = domainrunner.ModeRun
+			key := domainrunner.PipelineKey(pipeline)
+			if _, selected := m.selected[key]; !selected {
+				m.selected[key] = domainrunner.ModeRun
+			}
 		}
 		m.warning = ""
 	case "/":
@@ -518,7 +521,7 @@ func (m CatalogModel) helpView() string {
 			}
 		}
 	}
-	return shortcutBar(max(1, m.width-4), items[0]) + "\n" + shortcutBar(max(1, m.width-4), append(items[1:], "d detalhe", "a acções", "q sair")...)
+	return shortcutBar(max(1, m.width-4), items[0]) + "\n" + shortcutBar(max(1, m.width-4), append(items[1:], "d detalhe", "a acções", ":q sair")...)
 }
 
 func (m CatalogModel) nextStep() string {

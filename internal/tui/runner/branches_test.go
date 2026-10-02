@@ -81,6 +81,48 @@ func TestBranchBusyEscapeCancelsAndCatalogExitReturns(t *testing.T) {
 	}
 }
 
+func TestBranchQDoesNotQuit(t *testing.T) {
+	m := NewBranchDemo()
+	updated, command := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	if command != nil || updated.(BranchModel).stage != m.stage {
+		t.Fatal("q must not exit or change the branch screen")
+	}
+}
+
+func TestBranchCommandQuitDuringBusyCancelsWithoutExiting(t *testing.T) {
+	m := NewBranchDemo()
+	m.busy = true
+	updated, command := branchKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
+	m = updated
+	if command == nil || !m.command.active {
+		t.Fatal("missing command input")
+	}
+	for _, r := range "q" {
+		m, command = branchKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	m, command = branchKey(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if command != nil || m.command.active || m.opCtx.Err() == nil {
+		t.Fatal(":q during a busy operation must cancel and stay in the TUI")
+	}
+	if !strings.Contains(m.err, "Cancelamento pedido") {
+		t.Fatalf("missing cancellation notice: %q", m.err)
+	}
+}
+
+func TestBranchEscapeBlursConfirmationForNextScreenCommands(t *testing.T) {
+	m := NewBranchDemo()
+	m.stage = "review"
+	m.confirmation.Focus()
+	m, command := branchKey(m, tea.KeyMsg{Type: tea.KeyEsc})
+	if command != nil || m.stage != "list" || m.confirmation.Focused() {
+		t.Fatal("leaving review did not blur confirmation input")
+	}
+	m, command = branchKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
+	if command == nil || !m.command.active {
+		t.Fatal(": did not open after leaving review")
+	}
+}
+
 func TestBranchReviewConfirmationAndPartialResults(t *testing.T) {
 	f := &branchFake{}
 	m := NewBranchDemo()

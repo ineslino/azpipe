@@ -194,6 +194,13 @@ func azureRepositoryPath(value string) string {
 	if value == "" {
 		return ""
 	}
+	host := value
+	if separator := strings.IndexByte(host, '/'); separator >= 0 {
+		host = host[:separator]
+	}
+	if host != "dev.azure.com" && host != "ssh.dev.azure.com" && !strings.HasSuffix(host, ".visualstudio.com") {
+		return ""
+	}
 	if marker := strings.Index(value, "/_git/"); marker >= 0 {
 		value = value[:marker] + "/" + strings.TrimPrefix(value[marker+len("/_git/"):], "/")
 	}
@@ -201,6 +208,13 @@ func azureRepositoryPath(value string) string {
 		value = value[:marker] + "/" + strings.TrimPrefix(value[marker+len("/v3/"):], "/")
 	}
 	parts := strings.Split(value, "/")
+	if strings.HasSuffix(host, ".visualstudio.com") {
+		if len(parts) < 3 {
+			return ""
+		}
+		organization := strings.TrimSuffix(host, ".visualstudio.com")
+		return strings.Join([]string{organization, parts[len(parts)-2], parts[len(parts)-1]}, "/")
+	}
 	if len(parts) < 4 {
 		return ""
 	}

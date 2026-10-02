@@ -23,14 +23,138 @@ func TestCatalogSelectAllVisibleAndEscapeStaysInCatalog(t *testing.T) {
 	m := catalogFixture()
 	m.search.SetValue("api")
 	m.filter()
+	m.selected[domain.PipelineKey(m.visible[0])] = domain.ModePlan
 	updated, command := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("A")})
 	m = updated.(CatalogModel)
 	if command != nil || len(m.Selected()) != len(m.visible) {
 		t.Fatalf("select all selected %d of %d visible pipelines", len(m.Selected()), len(m.visible))
 	}
+	if m.selected[domain.PipelineKey(m.visible[0])] != domain.ModePlan {
+		t.Fatal("select all changed an existing PLAN selection to RUN")
+	}
 	updated, command = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if command != nil || updated.(CatalogModel).input != inputNone {
 		t.Fatal("escape unexpectedly quit or changed catalog input")
+	}
+}
+
+func TestAppCommandQuitAndPlainQ(t *testing.T) {
+	model := NewDemoApp()
+	updated, command := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	model = updated.(AppModel)
+	if command != nil || model.command.active {
+		t.Fatal("plain q must not exit the TUI")
+	}
+
+	updated, command = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
+	model = updated.(AppModel)
+	if command == nil || !model.command.active {
+		t.Fatal("colon did not open the command line")
+	}
+	for _, r := range "q" {
+		updated, command = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		model = updated.(AppModel)
+	}
+	updated, command = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(AppModel)
+	if command == nil {
+		t.Fatal("missing :q quit command")
+	}
+	if _, ok := command().(tea.QuitMsg); !ok {
+		t.Fatalf(":q returned %T, want tea.QuitMsg", command())
+	}
+}
+
+func TestEscapeNeverQuitsAtRootOrWhileCommandIsOpen(t *testing.T) {
+	model := NewBootstrapApp(nil, ContextDefaults{})
+	updated, command := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(AppModel)
+	if command != nil || model.Screen() != ScreenContext {
+		t.Fatal("escape at the root context must not quit")
+	}
+
+	model = NewDemoApp()
+	updated, command = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
+	model = updated.(AppModel)
+	if command == nil || !model.command.active {
+		t.Fatal("colon did not open the command line")
+	}
+	updated, command = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(AppModel)
+	if command != nil || model.command.active || model.Screen() != ScreenCatalog {
+		t.Fatal("escape from the command line must return without quitting")
+	}
+}
+
+func TestCommandLineFitsTerminal(t *testing.T) {
+	for _, size := range []tea.WindowSizeMsg{{Width: 80, Height: 24}, {Width: 100, Height: 32}} {
+		model := NewDemoApp()
+		updated, _ := model.Update(size)
+		model = updated.(AppModel)
+		updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
+		model = updated.(AppModel)
+		if got := lipgloss.Height(model.View()); got > size.Height {
+			t.Fatalf("command view exceeds %dx%d: %d lines", size.Width, size.Height, got)
+		}
+
+		branches := NewBranchDemo()
+		branches.width, branches.height = size.Width, size.Height
+		updatedBranch, _ := branches.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
+		branches = updatedBranch.(BranchModel)
+		if got := lipgloss.Height(branches.View()); got > size.Height {
+			t.Fatalf("branch command view exceeds %dx%d: %d lines", size.Width, size.Height, got)
+		}
+
+		workflow := NewDemoApp()
+		updatedWorkflow, _ := workflow.Update(size)
+		workflow = updatedWorkflow.(AppModel)
+		workflow, _ = pressApp(t, workflow, " ")
+		var command tea.Cmd
+		workflow, command = pressApp(t, workflow, "enter")
+		workflow, _ = runAppCmd(t, workflow, command)
+		workflow, _ = pressApp(t, workflow, ":")
+		if got := lipgloss.Height(workflow.View()); got > size.Height {
+			t.Fatalf("review command view exceeds %dx%d: %d lines", size.Width, size.Height, got)
+		}
+
+		workflow = NewDemoApp()
+		updatedWorkflow, _ = workflow.Update(size)
+		workflow = updatedWorkflow.(AppModel)
+		workflow.screen = ScreenExecution
+		workflow.execution = executionModel{queued: true, width: size.Width - 4, height: size.Height - 2, demo: true}
+		workflow, _ = pressApp(t, workflow, ":")
+		if got := lipgloss.Height(workflow.View()); got > size.Height {
+			t.Fatalf("execution command view exceeds %dx%d: %d lines", size.Width, size.Height, got)
+		}
+
+		workflow = NewDemoApp()
+		updatedWorkflow, _ = workflow.Update(size)
+		workflow = updatedWorkflow.(AppModel)
+		workflow.openLibrary("history")
+		workflow, _ = pressApp(t, workflow, ":")
+		if got := lipgloss.Height(workflow.View()); got > size.Height {
+			t.Fatalf("library command view exceeds %dx%d: %d lines", size.Width, size.Height, got)
+		}
+	}
+}
+
+func TestCommandPrefixDoesNotStealTextInput(t *testing.T) {
+	model := NewDemoApp()
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	model = updated.(AppModel)
+	updated, command := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
+	model = updated.(AppModel)
+	if command == nil || model.command.active || model.catalog.search.Value() != ":" {
+		t.Fatalf("colon was intercepted in catalog input: active=%v value=%q command=%v", model.command.active, model.catalog.search.Value(), command != nil)
+	}
+
+	branches := NewBranchDemo()
+	updatedBranch, _ := branches.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	branches = updatedBranch.(BranchModel)
+	updatedBranch, command = branches.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
+	branches = updatedBranch.(BranchModel)
+	if command == nil || branches.command.active || branches.filter.Value() != ":" {
+		t.Fatalf("colon was intercepted in branch input: active=%v value=%q command=%v", branches.command.active, branches.filter.Value(), command != nil)
 	}
 }
 

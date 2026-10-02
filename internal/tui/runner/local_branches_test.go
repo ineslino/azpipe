@@ -49,6 +49,21 @@ func TestRepositoriesMatchAzureHTTPSAndSSHRemotes(t *testing.T) {
 	) {
 		t.Fatal("equivalent Azure DevOps HTTPS and SSH remotes did not match")
 	}
+	if !repositoriesMatch(
+		"https://dev.azure.com/example/sample/_git/sample-repo",
+		"https://example.visualstudio.com/sample/_git/sample-repo",
+	) {
+		t.Fatal("equivalent legacy Azure DevOps HTTPS remotes did not match")
+	}
+}
+
+func TestRepositoriesMatchDoesNotCrossMatchOtherHosts(t *testing.T) {
+	if repositoriesMatch(
+		"https://dev.azure.com/example/sample/_git/sample-repo",
+		"https://github.com/example/sample/sample-repo",
+	) {
+		t.Fatal("non-Azure remote was treated as the Azure repository")
+	}
 }
 
 func runGit(t *testing.T, directory string, args ...string) {

@@ -55,6 +55,7 @@ type BranchModel struct {
 	returnToCatalog               bool
 	originFilter                  map[branchOrigin]bool
 	workingDirectory              string
+	command                       commandModel
 	opCtx                         context.Context
 	cancel                        context.CancelFunc
 	generation                    uint64
@@ -187,7 +188,31 @@ func (m *BranchModel) toggleOrigin(origin branchOrigin) {
 }
 
 func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok && m.showHelp && !m.busy && (key.Type == tea.KeyCtrlC || key.Type == tea.KeyCtrlD || key.String() == "q") {
+	if key, ok := msg.(tea.KeyMsg); ok && m.command.active {
+		action, cmd := m.command.update(key)
+		if action == commandQuit {
+			if m.busy {
+				if m.cancel != nil {
+					m.cancel()
+				}
+				m.command.close()
+				m.err = "Cancelamento pedido; aguarda o resultado. Não desfaz pedidos aceites."
+				return m, nil
+			}
+			if m.cancel != nil {
+				m.cancel()
+			}
+			return m, tea.Quit
+		}
+		if action == commandBack {
+			return m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		}
+		return m, cmd
+	}
+	if key, ok := msg.(tea.KeyMsg); ok && key.String() == ":" && m.input == "" && !m.confirmation.Focused() {
+		return m, m.command.start(m.width)
+	}
+	if key, ok := msg.(tea.KeyMsg); ok && m.showHelp && !m.busy && (key.Type == tea.KeyCtrlC || key.Type == tea.KeyCtrlD) {
 		if m.cancel != nil {
 			m.cancel()
 		}
@@ -249,6 +274,7 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if v.token != m.generation {
 			return m, nil
 		}
+		m.confirmation.Blur()
 		m.busy = false
 		m.stage = "results"
 		m.results = v.results
@@ -258,7 +284,7 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyMsg:
 		if m.busy {
-			if v.String() == "esc" || v.String() == "ctrl+c" || v.String() == "q" {
+			if v.String() == "esc" || v.String() == "ctrl+c" {
 				if m.cancel != nil {
 					m.cancel()
 				}
@@ -301,6 +327,7 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.stage == "review" {
 			switch v.String() {
 			case "esc":
+				m.confirmation.Blur()
 				m.stage = "list"
 				m.reviewed = nil
 				m.confirmation.SetValue("")
@@ -333,6 +360,7 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.busy = true
 				m.err = ""
+				m.confirmation.Blur()
 				token := m.startOperation()
 				return m, func() tea.Msg {
 					var results []string
@@ -358,11 +386,6 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		switch v.String() {
-		case "q":
-			if m.cancel != nil {
-				m.cancel()
-			}
-			return m, tea.Quit
 		case "esc":
 			if m.cancel != nil {
 				m.cancel()
@@ -668,7 +691,7 @@ func (m BranchModel) originFiltersLabel() string {
 func (m BranchModel) View() string {
 	frameWidth := max(10, m.width)
 	if m.showHelp {
-		return section("BRANCHES · AJUDA", "\n/   Filtrar pelo nome\nu   Filtrar pelo criador\nR   Mostrar/ocultar remotas\nL   Mostrar/ocultar locais\nW   Mostrar/ocultar worktrees\na   Seleccionar todas as remotas visíveis\nc   Limpar filtros\n\nr   Actualizar\nb   Escolher repositório\n←/→ Percorrer detalhe e erros\n\nEsc Voltar\nq   Sair\n?   Fechar ajuda", frameWidth)
+		return section("BRANCHES · AJUDA", "\n/   Filtrar pelo nome\nu   Filtrar pelo criador\nR   Mostrar/ocultar remotas\nL   Mostrar/ocultar locais\nW   Mostrar/ocultar worktrees\na   Seleccionar todas as remotas visíveis\nc   Limpar filtros\n\nr   Actualizar\nb   Escolher repositório\n←/→ Percorrer detalhe e erros\n\nEsc Voltar\n:q  Sair\n?   Fechar ajuda", frameWidth)
 	}
 	inner, widths, headers := branchTableLayout(frameWidth, m.stage)
 	lines := []string{catalogTitleStyle.Render(truncateWidth("GESTÃO DE BRANCHES", frameWidth)), m.breadcrumb(), ""}
@@ -676,7 +699,7 @@ func (m BranchModel) View() string {
 	var total int
 	var detail string
 	tableTitle := "RESULTADOS"
-	help := "↑/↓ navegar · enter abrir · r actualizar · q sair"
+	help := "↑/↓ navegar · enter abrir · r actualizar · esc anterior · :q sair"
 	switch m.stage {
 	case "repos":
 		lines = append(lines, "Escolhe um repositório para abrir as branches", "")
@@ -714,7 +737,7 @@ func (m BranchModel) View() string {
 			b := entry.branch()
 			detail = fmt.Sprintf("Origem: %s\nLocal: %s\nBranch: %s\nEstado: %s\nCriador: %s\nSHA: %s", entry.originLabel(), entry.locationLabel(), b.Name, branchState(b), branchCreator(b), b.ObjectID)
 		}
-		help = "espaço seleccionar remote · a todas as remote · R/L/W filtrar origem · enter rever · esc anterior · q sair"
+		help = "espaço seleccionar remote · a todas as remote · R/L/W filtrar origem · enter rever · esc anterior · :q sair"
 	case "review":
 		lines = append(lines, "REVER ELIMINAÇÃO · branches remotas", "Confirma o repositório, os nomes e os SHAs.", "Isto não confirma que os commits já foram integrados.", "")
 		tableTitle = "REVISÃO"
@@ -745,7 +768,7 @@ func (m BranchModel) View() string {
 		if m.cursor < total {
 			detail = m.results[m.cursor]
 		}
-		help = "↑/↓ navegar · r actualizar branches · b repos · esc anterior · q sair"
+		help = "↑/↓ navegar · r actualizar branches · b repos · esc anterior · :q sair"
 	}
 	reserve := 16
 	if m.stage == "review" && !m.demo {
@@ -809,7 +832,7 @@ func (m BranchModel) View() string {
 		}
 	}
 	if m.busy {
-		lines = append(lines, "A processar… Esc cancela o restante lote.")
+		lines = append(lines, "A processar… Esc ou :q cancela o restante lote.")
 	}
 	if m.err != "" {
 		lines = append(lines, "", catalogWarningStyle.Render(horizontalWindow("Erro: "+m.err, m.detailOffset*20, inner)), "←/→ percorrer erro completo")
@@ -818,13 +841,16 @@ func (m BranchModel) View() string {
 		lines = append(lines, "DEMO OFFLINE · não elimina branches")
 	}
 	if m.stage == "review" && m.demo {
-		help = "↑/↓ rever lista · esc voltar à selecção · ctrl+c sair"
+		help = "↑/↓ rever lista · esc voltar à selecção · :q sair"
 	} else if m.input != "" {
 		help = "A filtrar branches · enter terminar pesquisa · esc voltar à lista"
 	} else if m.stage != "review" && m.returnToCatalog {
 		help += " · esc voltar ao catálogo"
 	}
 	lines = append(lines, strings.Split(ansi.Wrap(help, inner, ""), "\n")...)
+	if m.command.active {
+		lines = append(lines, m.command.view(frameWidth))
+	}
 	for i, line := range lines {
 		lines[i] = ansi.Truncate(line, frameWidth, "…")
 	}

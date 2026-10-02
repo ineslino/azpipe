@@ -15,7 +15,7 @@ azpipe branches delete --org example-org --project sample-project --repo sample-
 
 No catálogo de pipelines, `B` abre a mesma área. Esta primeira versão trabalha num projecto e num repositório de cada vez, não em **Todos os projectos**.
 
-Na lista: `/` filtra o nome, `u` filtra o criador, `R`/`L`/`W` mostram ou ocultam origens remotas, locais e worktrees, `c` limpa os filtros, espaço selecciona uma branch remota, `a` selecciona todas as remotas visíveis, Enter revê, `r` actualiza e limpa a selecção, `b` muda de repositório e `q` sai. O breadcrumb mostra sempre o nível actual: projecto, repositórios, branch, revisão ou resultados. `Esc` recua um nível; nunca termina a aplicação. Selecções ocultas pelo filtro continuam seleccionadas e aparecem na revisão. Usa setas para percorrer a revisão e `←`/`→` para deslocar o detalhe completo. A confirmação exige escrever exactamente `ELIMINAR`; a demo nunca envia eliminações.
+Na lista: `/` filtra o nome, `u` filtra o criador, `R`/`L`/`W` mostram ou ocultam origens remotas, locais e worktrees, `c` limpa os filtros, espaço selecciona uma branch remota, `a` selecciona todas as remotas visíveis, Enter revê, `r` actualiza e limpa a selecção e `b` muda de repositório. O breadcrumb mostra sempre o nível actual: projecto, repositórios, branch, revisão ou resultados. `Esc` recua um nível e nunca termina a aplicação; usa `:q` para sair explicitamente. Selecções ocultas pelo filtro continuam seleccionadas e aparecem na revisão. Usa setas para percorrer a revisão e `←`/`→` para deslocar o detalhe completo. A confirmação exige escrever exactamente `ELIMINAR`; a demo nunca envia eliminações.
 
 Quando o repositório Azure DevOps corresponde ao checkout Git actual, a lista agrega branches locais e branches ligadas a worktrees. Essas entradas aparecem como `LOCAL` ou `WORKTREE`, mostram o caminho e são só de leitura. Apenas entradas `REMOTE` podem entrar no fluxo de revisão e eliminação. A correspondência aceita os formatos HTTPS e SSH do Azure DevOps; se não for possível confirmar a correspondência, o TUI mostra apenas as branches remotas.
 
@@ -25,7 +25,7 @@ Para eliminar pela CLI, repete o comando de revisão com `--sha 'SHA_COMPLETO_DA
 
 Salvaguardas:
 
-Quando aberta com `B`, Esc regressa ao catálogo a partir da lista; `q` sai da aplicação. Na revisão, Esc volta à selecção e Ctrl+C sai. O campo de confirmação indica antecipadamente a palavra `ELIMINAR`, a quantidade de branches e o repositório. Durante processamento, Esc, `q` ou Ctrl+C pede cancelamento e aguarda os resultados: impede o início das restantes eliminações, mas não desfaz pedidos já aceites. Uma operação em curso pode terminar com resultado incerto.
+Quando aberta com `B`, Esc regressa ao catálogo a partir da lista; `:q` sai da aplicação. Na revisão, Esc volta à selecção e Ctrl+C sai. O campo de confirmação indica antecipadamente a palavra `ELIMINAR`, a quantidade de branches e o repositório. Durante processamento, Esc, `:q` ou Ctrl+C pede cancelamento e aguarda os resultados: impede o início das restantes eliminações, mas não desfaz pedidos já aceites. Uma operação em curso pode terminar com resultado incerto.
 
 - Bloqueia a branch default, `main`, `master`, `develop`, refs bloqueadas, políticas activas aplicáveis e PRs activos que usem a branch como origem ou destino.
 - Falhas ao consultar protecções impedem a eliminação. Cada branch é novamente revista antes de escrever; o pedido usa o SHA revisto para o servidor rejeitar alterações concorrentes.
@@ -168,7 +168,8 @@ folder, tags and PLAN availability; `d` opens the complete metadata when values 
 | `b` | Edit the global branch, initially `main` |
 | `Enter` | Review the selection |
 | `Esc` | Leave the current input or return to the catalog without losing the selection |
-| `q`, `Ctrl+C`, `Ctrl+D` | Exit safely without creating a run before confirmation |
+| `:q` / `:quit` | Exit explicitly; plain `q` is not an exit shortcut |
+| `Ctrl+C`, `Ctrl+D` | Emergency exit without creating a run before confirmation |
 
 `PLAN` requires an explicit contract loaded from `AZPIPE_CONTRACTS` (JSON file).
 The contract identifies the organization URL, project, pipeline ID, definition

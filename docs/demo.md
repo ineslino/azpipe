@@ -34,8 +34,8 @@ go run . demo
 4. `e` abre parâmetros fictícios; Tab navega e Ctrl+S guarda na sessão.
 5. Enter abre a revisão de exemplo. Outro Enter mostra um exemplo estático de acompanhamento, sem executar a selecção. Esc regressa ao catálogo mantendo a selecção.
 6. `s` e `l` demonstram perfis em memória; `h` mostra um lote fictício de estados mistos.
-7. `B` abre a tabela de branches. `u` filtra por criador; espaço selecciona e Enter abre a revisão. A branch principal aparece protegida. Esc volta à lista e outro Esc regressa ao catálogo. `q` sai da aplicação a partir da lista.
-8. `q` sai do catálogo.
+7. `B` abre a tabela de branches. `u` filtra por criador; espaço selecciona e Enter abre a revisão. A branch principal aparece protegida. Esc volta à lista e outro Esc regressa ao catálogo. Usa `:q` para sair explicitamente.
+8. `q` sozinho não termina a TUI; `Esc` recua no fluxo. Usa `:q` para sair.
 
 A demo não cria cliente Azure DevOps, não pede credenciais nem grava perfis no disco. O histórico fictício é estático, não uma execução real.
 
@@ -43,7 +43,7 @@ A marca permanece compacta durante o trabalho. `d` abre os metadados completos d
 
 ## EN
 
-Run `go run . demo` from the checkout in an interactive terminal (Go 1.26.3+, at least 80×24). Use arrows and Space to select, `/` to filter, `m` for RUN/PLAN on a selected contracted pipeline, and `e` for fixture parameters (Tab to move, Ctrl+S to save). Enter opens review; another Enter shows a static fictional batch, independent of your selection. Esc returns and preserves the selection. Profiles (`s`/`l`) are memory-only; `h` also opens fictional history. Press `B` for branches, Esc to return to the catalog from the branch list, and `q` to quit either list.
+Run `go run . demo` from the checkout in an interactive terminal (Go 1.26.3+, at least 80×24). Use arrows and Space to select, `/` to filter, `m` for RUN/PLAN on a selected contracted pipeline, and `e` for fixture parameters (Tab to move, Ctrl+S to save). Enter opens review; another Enter shows a static fictional batch, independent of your selection. Esc returns and preserves the selection. Profiles (`s`/`l`) are memory-only; `h` also opens fictional history. Press `B` for branches, Esc to return to the catalog from the branch list, and `:q` to quit explicitly; plain `q` only stays in the current screen.
 
 No Azure DevOps client, credentials, network calls or profile files are involved. Press `a` or `?` to discover actions, use arrows and Enter, and Esc to return. Branding stays compact. `d` opens pipeline metadata; `?` opens branch help. The final recording frame is an editorial end card, not an application screen. `NO_COLOR` is respected.
 

@@ -110,7 +110,7 @@ func (m contextModel) update(msg tea.Msg) (contextModel, tea.Cmd) {
 				m.setFocus(contextOrganizationFocus)
 				return m, nil
 			}
-			return m, tea.Quit
+			return m, nil
 		}
 		if m.loading {
 			return m, nil
@@ -276,7 +276,7 @@ func (m contextModel) view() string {
 	if len(m.projects) > 0 {
 		lines = append(lines, "", shortcutBar(width, "enter abrir catálogo"), shortcutBar(width, "↑/↓ escolher projecto", "esc mudar organização"))
 	} else {
-		lines = append(lines, "", shortcutBar(width, "enter ligar", "esc sair"))
+		lines = append(lines, "", shortcutBar(width, "enter ligar", "esc voltar (se disponível)", ":q sair"))
 	}
 	return ansi.Wrap(strings.Join(lines, "\n"), width, "")
 }

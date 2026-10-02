@@ -68,7 +68,7 @@ func (m AppModel) updateActions(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	index := *m.actions
 	items := m.catalogActions()
 	switch key.String() {
-	case "esc", "q", "a", "?":
+	case "esc", "a", "?":
 		m.actions = nil
 	case "up", "k":
 		index = max(0, index-1)

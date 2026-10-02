@@ -44,6 +44,7 @@ type AppModel struct {
 	library       *libraryModel
 	demoProfiles  []domainrunner.Profile
 	actions       *int
+	command       commandModel
 }
 
 type operationToken struct {
@@ -133,8 +134,34 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.branchBrowser = &browser
 		return m, cmd
 	}
+	if key, ok := msg.(tea.KeyMsg); ok {
+		if m.command.active {
+			action, cmd := m.command.update(key)
+			switch action {
+			case commandQuit:
+				if m.screen == ScreenExecution && !m.execution.queued {
+					m.command.err = "Ainda a submeter; aguarda a confirmação do lote."
+					return m, nil
+				}
+				if m.branchBrowser != nil && m.branchBrowser.cancel != nil {
+					m.branchBrowser.cancel()
+				}
+				return m, tea.Quit
+			case commandBack:
+				return m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			default:
+				return m, cmd
+			}
+		}
+		if key.String() == ":" && !m.commandInputActive() {
+			if m.screen == ScreenExecution && !m.execution.queued {
+				return m, nil
+			}
+			return m, m.command.start(m.width)
+		}
+	}
 	if key, ok := msg.(tea.KeyMsg); ok && m.screen == ScreenExecution && !m.execution.queued {
-		if key.String() == "q" || key.Type == tea.KeyEsc || key.Type == tea.KeyCtrlC || key.Type == tea.KeyCtrlD {
+		if key.Type == tea.KeyEsc || key.Type == tea.KeyCtrlC || key.Type == tea.KeyCtrlD {
 			return m, nil
 		}
 	}
@@ -465,11 +492,24 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.execution.offset = max(0, m.execution.offset-m.execution.pageSize())
 			}
 		}
-		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "q" {
-			return m, tea.Quit
-		}
 	}
 	return m, nil
+}
+
+func (m AppModel) commandInputActive() bool {
+	if m.library != nil {
+		return m.library.kind == "save" && m.library.name.Focused()
+	}
+	switch m.screen {
+	case ScreenContext:
+		return m.context.organization.Focused()
+	case ScreenCatalog:
+		return m.catalog.input != inputNone
+	case ScreenReview:
+		return m.review.confirmation.Focused()
+	default:
+		return false
+	}
 }
 
 // ExecutionError reports queue failures retained by the final execution model.
@@ -492,33 +532,35 @@ func (m AppModel) ExecutionError() error {
 
 // View renders the active screen.
 func (m AppModel) View() string {
+	var view string
 	if m.branchBrowser != nil {
-		return m.branchBrowser.View()
-	}
-	if m.actions != nil {
-		return m.contextHeader() + m.actionsView()
-	}
-	if m.library != nil {
-		return m.contextHeader() + section("PERFIS E LOTES", m.library.view(max(1, m.width-4), max(1, m.height-2)), m.width)
-	}
-	switch m.screen {
-	case ScreenContext:
-		view := m.context.view()
-		if m.branchesOnly {
-			view = strings.ReplaceAll(view, "catálogo de pipelines", "gestão de branches")
-			view = strings.ReplaceAll(view, "abrir catálogo", "abrir repositórios")
+		view = m.branchBrowser.View()
+	} else if m.actions != nil {
+		view = m.contextHeader() + m.actionsView()
+	} else if m.library != nil {
+		view = m.contextHeader() + section("PERFIS E LOTES", m.library.view(max(1, m.width-4), max(1, m.height-2)), m.width)
+	} else {
+		switch m.screen {
+		case ScreenContext:
+			view = m.context.view()
+			if m.branchesOnly {
+				view = strings.ReplaceAll(view, "catálogo de pipelines", "gestão de branches")
+				view = strings.ReplaceAll(view, "abrir catálogo", "abrir repositórios")
+			}
+			view = section("LIGAÇÃO AO AZURE DEVOPS", view, m.width)
+		case ScreenCatalog:
+			catalog := m.catalog
+			view = m.contextHeader() + catalog.View()
+		case ScreenReview:
+			view = m.contextHeader() + section("VALIDAÇÃO DO LOTE", m.review.view(), m.width)
+		case ScreenExecution:
+			view = m.contextHeader() + section("MONITORIZAÇÃO DO LOTE", m.execution.view(), m.width)
 		}
-		return section("LIGAÇÃO AO AZURE DEVOPS", view, m.width)
-	case ScreenCatalog:
-		catalog := m.catalog
-		return m.contextHeader() + catalog.View()
-	case ScreenReview:
-		return m.contextHeader() + section("VALIDAÇÃO DO LOTE", m.review.view(), m.width)
-	case ScreenExecution:
-		return m.contextHeader() + section("MONITORIZAÇÃO DO LOTE", m.execution.view(), m.width)
-	default:
-		return ""
 	}
+	if !m.command.active {
+		return view
+	}
+	return view + "\n" + m.command.view(m.width)
 }
 
 func (m AppModel) contextHeader() string {

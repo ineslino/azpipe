@@ -39,12 +39,13 @@ func TestWelcomeBannerFitsInitialScreen(t *testing.T) {
 	}
 	for _, width := range []int{80, 120} {
 		m := newContextModel(ContextDefaults{Organization: "example-org", Project: "sample-project"})
+		m.width = width
 		m.err = "Organização e projecto são obrigatórios."
-		view := section("LIGAÇÃO AO AZURE DEVOPS", m.view(), width)
+		view := m.view()
 		if lipgloss.Width(view) > width || lipgloss.Height(view) > 24 {
 			t.Fatalf("welcome screen does not fit %dx24", width)
 		}
-		for _, text := range []string{"Organização:", "enter", "esc", "█", "Um só terminal."} {
+		for _, text := range []string{"Organização:", "enter", ":q", "█", "Um só terminal."} {
 			if !strings.Contains(ansi.Strip(view), text) {
 				t.Fatalf("missing context control %q", text)
 			}

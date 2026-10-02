@@ -89,6 +89,7 @@ func NewBootstrapApp(factory ClientFactory, defaults ContextDefaults) AppModel {
 func NewBranchesBootstrap(factory ClientFactory, defaults ContextDefaults) AppModel {
 	m := NewBootstrapApp(factory, defaults)
 	m.branchesOnly = true
+	m.context.branchesOnly = true
 	return m
 }
 
@@ -121,7 +122,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if size, ok := msg.(tea.WindowSizeMsg); ok {
 		m.height = size.Height
 		m.width = size.Width
-		m.context.width, m.context.height = max(1, size.Width-4), max(1, size.Height-2)
+		m.context.width, m.context.height = max(1, size.Width), max(1, size.Height)
 		m.review.height = max(1, size.Height-2)
 		m.review.width = max(1, size.Width-4)
 		m.execution.height = max(1, size.Height-2)
@@ -161,11 +162,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				contextCommand = false
 			}
 		}
-		if key.String() == ":" && (!m.commandInputActive() || contextCommand) {
+		startsCommand := key.Type == tea.KeyRunes && !key.Alt && len(key.Runes) > 0 && key.Runes[0] == ':'
+		if startsCommand && (!m.commandInputActive() || contextCommand) {
 			if m.screen == ScreenExecution && !m.execution.queued {
 				return m, nil
 			}
-			return m, m.command.start(m.width)
+			cmd := m.command.start(m.width)
+			m.command.input.SetValue(string(key.Runes[1:]))
+			return m, cmd
 		}
 	}
 	if key, ok := msg.(tea.KeyMsg); ok && m.screen == ScreenExecution && !m.execution.queued {
@@ -225,8 +229,8 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if typed.project != currentProject {
 				return m, nil
 			}
+			m.context.loading = false
 			if currentProject == domainrunner.AllProjects {
-				m.context.loading = false
 				m.context.err = "Escolhe um projecto específico para gerir branches."
 				return m, nil
 			}
@@ -556,14 +560,16 @@ func (m AppModel) View() string {
 	} else {
 		switch m.screen {
 		case ScreenContext:
-			view = m.context.view()
-			if m.branchesOnly {
-				view = strings.ReplaceAll(view, "catálogo de pipelines", "gestão de branches")
-				view = strings.ReplaceAll(view, "abrir catálogo", "abrir repositórios")
+			context := m.context
+			if m.command.active {
+				context.height--
 			}
-			view = section("LIGAÇÃO AO AZURE DEVOPS", view, m.width)
+			view = context.view()
 		case ScreenCatalog:
 			catalog := m.catalog
+			if m.command.active {
+				catalog.height--
+			}
 			header := m.contextHeader()
 			if m.height >= 36 && m.width >= 60 && !catalog.showDetails && catalog.input == inputNone {
 				header = welcomeBrand() + "\n" + header

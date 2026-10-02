@@ -374,6 +374,41 @@ func (m CatalogModel) active() (azdo.Pipeline, bool) {
 	return m.visible[m.cursor], true
 }
 
+func (m CatalogModel) selectionView() string {
+	inner := max(1, m.width-4)
+	plans := 0
+	for _, mode := range m.selected {
+		if mode == domainrunner.ModePlan {
+			plans++
+		}
+	}
+	branchLabel := m.branch.Value()
+	if len(m.branches) > 0 {
+		branchLabel = "por pipeline (perfil)"
+	}
+	m.search.Width = max(8, inner-10)
+	lines := []string{
+		catalogTitleStyle.Render(truncateWidth(m.nextStep(), inner)),
+		tableCells([]int{9, 9, max(1, inner-24)}, runStyle.Render(fmt.Sprintf("%d RUN", len(m.selected)-plans)), planStyle.Render(fmt.Sprintf("%d PLAN", plans)), metadata("Branch", branchLabel)),
+		m.search.View(),
+	}
+	if m.input == inputBranch {
+		m.branch.Width = max(8, inner-9)
+		lines = append(lines, m.branch.View())
+	}
+	if m.input == inputParameters {
+		m.parameterInput.Width = max(8, inner-32)
+		lines = append(lines, m.parameterInput.View())
+	}
+	if m.warning != "" {
+		lines = append(lines, catalogWarningStyle.Render(ansi.Wrap(m.warning, inner, "")))
+	}
+	if m.notice != "" {
+		lines = append(lines, catalogDetailStyle.Render(ansi.Wrap(m.notice, inner, "")))
+	}
+	return section("SELECÇÃO E PESQUISA", strings.Join(lines, "\n"), m.width)
+}
+
 // View renders compact rows and reserves a detail line for the active pipeline.
 func (m CatalogModel) View() string {
 	if m.showDetails {
@@ -385,25 +420,7 @@ func (m CatalogModel) View() string {
 		pipeline, _ := m.active()
 		return section("CONFIGURAR PARÂMETROS", m.editor.view(max(1, m.width-4), max(1, m.height-2), pipeline.Name), m.width)
 	}
-	plans := 0
-	for _, mode := range m.selected {
-		if mode == domainrunner.ModePlan {
-			plans++
-		}
-	}
-	branchLabel := m.branch.Value()
-	if len(m.branches) > 0 {
-		branchLabel = "por pipeline (perfil)"
-	}
-	m.search.Width = max(8, m.width-14)
-	lines := []string{
-		catalogTitleStyle.Render(truncateWidth(m.nextStep(), m.width)),
-		runStyle.Render(fmt.Sprintf("%d RUN", len(m.selected)-plans)) + "  " + planStyle.Render(fmt.Sprintf("%d PLAN", plans)) + "  " + catalogDetailStyle.Render(truncateWidth("Branch: "+branchLabel, max(1, m.width-20))),
-		m.search.View(),
-	}
-	if m.height >= 24 {
-		lines = []string{lines[0], lines[1], "", lines[2], ""}
-	}
+	lines := []string{m.selectionView()}
 
 	start, end := m.displayRange()
 	inner := max(1, m.width-4)
@@ -452,7 +469,6 @@ func (m CatalogModel) View() string {
 	for len(rows) < min(3, m.catalogCapacity())+1 {
 		rows = append(rows, "")
 	}
-	lines = append(lines, section(fmt.Sprintf("PIPELINES %d–%d / %d", min(start+1, len(m.visible)), end, len(m.visible)), strings.Join(rows, "\n"), m.width))
 	compactDetail := "Nenhuma pipeline activa. Altera a pesquisa."
 	detail := "Nenhuma pipeline activa.\nAltere o filtro para ver resultados.\nA selecção anterior mantém-se."
 	if pipeline, ok := m.active(); ok {
@@ -472,24 +488,18 @@ func (m CatalogModel) View() string {
 			metadata("Tags", strings.Join(pipeline.Tags, ", ")) + "\n" +
 			capabilityStyle.Render(capability) + catalogDetailStyle.Render(" · "+quantity(len(m.parameters[domainrunner.PipelineKey(pipeline)]), "parâmetro", "parâmetros"))
 	}
-	if m.height < 28 && len(m.visible) > 3 {
-		lines = append(lines, catalogDetailStyle.Render(truncateWidth("d detalhe completo · "+compactDetail, m.width)))
-	} else {
+	compact := m.height < 28 && len(m.visible) > 3
+	if compact {
+		rows = append(rows, borderStyle.Render(strings.Repeat("─", inner)), catalogDetailStyle.Render(truncateWidth("d detalhe completo · "+compactDetail, inner)))
+	}
+	lines = append(lines, section(fmt.Sprintf("PIPELINES %d–%d / %d", min(start+1, len(m.visible)), end, len(m.visible)), strings.Join(rows, "\n"), m.width))
+	if !compact {
 		lines = append(lines, section("DETALHE DA PIPELINE ACTIVA", detail, m.width))
 	}
-	if m.input == inputBranch {
-		lines = append(lines, m.branch.View())
-	}
-	if m.input == inputParameters {
-		lines = append(lines, m.parameterInput.View())
-	}
-	if m.warning != "" {
-		lines = append(lines, catalogWarningStyle.Render(m.warning))
-	}
-	if m.notice != "" {
-		lines = append(lines, catalogDetailStyle.Render(truncateWidth(m.notice, m.width)))
-	}
 	lines = append(lines, section("ACÇÕES E AJUDA · a ou ? abre o menu", m.helpView(), m.width))
+	if m.height >= 30 {
+		return strings.Join(lines, "\n\n")
+	}
 	return strings.Join(lines, "\n")
 }
 
@@ -504,21 +514,15 @@ func (m CatalogModel) displayRange() (int, int) {
 }
 
 func (m CatalogModel) catalogCapacity() int {
-	available := m.height - 16 - lipgloss.Height(m.helpView())
+	detailHeight, gaps := 5, 3
 	if m.height < 28 && len(m.visible) > 3 {
-		available += 4
+		detailHeight, gaps = 2, 2
 	}
-	if m.height >= 24 {
-		available -= 2
-	}
-	if m.warning != "" {
-		available--
-	}
-	if m.notice != "" {
-		available--
-	}
-	if m.input == inputBranch || m.input == inputParameters {
-		available--
+	// Reserve the app's two-line context and measure controls, including wrapped alerts.
+	available := m.height - 2 - lipgloss.Height(m.selectionView()) - 3 - detailHeight -
+		lipgloss.Height(section("ACÇÕES E AJUDA", m.helpView(), m.width))
+	if m.height >= 30 {
+		available -= gaps
 	}
 	return max(1, available)
 }

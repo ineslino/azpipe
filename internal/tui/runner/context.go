@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/ineslino/azpipe/internal/azdo"
 	domainrunner "github.com/ineslino/azpipe/internal/runner"
@@ -56,6 +57,7 @@ const (
 
 type contextModel struct {
 	width, height  int
+	branchesOnly   bool
 	errorScroll    int
 	organization   textinput.Model
 	project        textinput.Model // retained for compatibility with the non-interactive bootstrap contract
@@ -73,6 +75,9 @@ func newContextModel(defaults ContextDefaults) contextModel {
 	organization.CharLimit = 256
 	organization.Width = 48
 	organization.PromptStyle = keyStyle
+	organization.TextStyle = catalogTextStyle
+	organization.Placeholder = "nome ou https://dev.azure.com/organização"
+	organization.PlaceholderStyle = catalogDetailStyle
 	organization.SetValue(defaults.Organization)
 	organization.Focus()
 	project := textinput.New()
@@ -80,6 +85,8 @@ func newContextModel(defaults ContextDefaults) contextModel {
 	project.Blur()
 
 	return contextModel{
+		width:          defaultWidth,
+		height:         defaultHeight,
 		organization:   organization,
 		project:        project,
 		projectDefault: strings.TrimSpace(defaults.Project),
@@ -123,7 +130,22 @@ func (m contextModel) update(msg tea.Msg) (contextModel, tea.Cmd) {
 			case "down", "j", "tab":
 				m.projectCursor = min(len(m.projects), m.projectCursor+1)
 				return m, nil
+			case "pgup":
+				m.projectCursor = max(0, m.projectCursor-m.projectCapacity())
+				return m, nil
+			case "pgdown":
+				m.projectCursor = min(len(m.projects), m.projectCursor+m.projectCapacity())
+				return m, nil
+			case "home":
+				m.projectCursor = 0
+				return m, nil
+			case "end":
+				m.projectCursor = len(m.projects)
+				return m, nil
 			case "enter":
+				m.err = ""
+				m.errorScroll = 0
+				m.loading = true
 				organization := strings.TrimSpace(m.organization.Value())
 				return m, func() tea.Msg {
 					return contextSubmitMsg{organization: organization, project: m.selectedProject()}
@@ -146,6 +168,7 @@ func (m contextModel) update(msg tea.Msg) (contextModel, tea.Cmd) {
 				return m, nil
 			}
 			m.err = ""
+			m.errorScroll = 0
 			m.loading = true
 			return m, func() tea.Msg {
 				return contextSubmitMsg{organization: organization}
@@ -212,77 +235,102 @@ func (m contextModel) selectedProjectLabel() string {
 }
 
 func (m contextModel) view() string {
-	width := m.width
-	if width == 0 {
-		width = defaultWidth - 4
-	}
-	m.organization.Width = max(8, width-15)
-	brand := wordmarkStyle.Render("AZPIPE")
-	if len(m.projects) == 0 && width >= 56 {
-		brand = welcomeBrand()
-	}
-	lines := []string{
-		brand,
-		"",
-		catalogTitleStyle.Render("Ligar ao Azure DevOps"),
-	}
-	if len(m.projects) == 0 {
-		lines = append(lines,
-			"Introduza a organização. A aplicação usa a sessão Azure DevOps configurada neste computador.",
-			m.organization.View(),
-		)
-		if m.loading {
-			lines = append(lines, catalogDetailStyle.Render("A validar credenciais e a carregar projectos..."))
-		}
-	} else {
-		lines = append(lines,
-			"Sessão autenticada. Escolha um projecto para abrir o catálogo de pipelines.",
-			catalogDetailStyle.Render(truncateWidth("Organização: "+m.organization.Value(), defaultWidth)),
-			catalogTitleStyle.Render(fmt.Sprintf("Projectos disponíveis · %d", len(m.projects))),
-		)
-		selected := "Seleccionado: " + m.selectedProjectLabel()
-		selectedLines := strings.Count(ansi.Wrap(selected, width, ""), "\n") + 1
-		extra := selectedLines - 1
-		if m.err != "" {
-			extra += 5
-		}
-		if m.loading {
-			extra++
-		}
-		capacity := allProjectsCapacity
-		if m.height > 0 {
-			capacity = max(1, min(capacity, m.height-14-extra))
-		}
+	inner := max(1, m.width-4)
+	if len(m.projects) > 0 {
+		capacity := m.projectCapacity()
 		start := max(0, m.projectCursor-capacity+1)
 		end := min(len(m.projects)+1, start+capacity)
+		widths := []int{3, max(1, inner-21), 12}
+		var rows []string
 		for index := start; index < end; index++ {
-			label := allProjectsLabel
+			label, scope := allProjectsLabel, "ORGANIZAÇÃO"
 			if index > 0 {
-				label = m.projects[index-1].Name
+				label, scope = m.projects[index-1].Name, "PROJECTO"
 			}
-			line := "  " + label
+			marker := ""
 			if index == m.projectCursor {
-				line = "> " + label
-				line = catalogActiveStyle.Width(width).Render(truncateWidth(line, width))
-			} else {
-				line = catalogDetailStyle.Render(line)
+				marker = ">"
 			}
-			lines = append(lines, truncateWidth(line, width))
+			rows = append(rows, renderTableRow(widths, []string{marker, label, scope}, index, index == m.projectCursor, nil))
 		}
-		lines = append(lines, catalogDetailStyle.Render(selected))
-		if m.loading {
-			lines = append(lines, catalogDetailStyle.Render("A carregar pipelines do âmbito seleccionado..."))
+		return m.projectView(rows, start, end)
+	}
+	m.organization.Width = max(8, inner-ansi.StringWidth(m.organization.Prompt)-1)
+	body := catalogDetailStyle.Render(ansi.Wrap("Usa a sessão Azure DevOps configurada neste computador.", inner, "")) + "\n" + m.organization.View()
+	if m.loading {
+		body += "\n" + catalogDetailStyle.Render("A validar credenciais e a carregar projectos...")
+	}
+	return m.frame(section("1 · LIGAR AO AZURE DEVOPS", body, m.width))
+}
+
+func (m contextModel) projectView(rows []string, start, end int) string {
+	inner := max(1, m.width-4)
+	contextWidths := []int{12, max(1, inner-15)}
+	context := tableCells(contextWidths, catalogDetailStyle.Render("Organização"), m.organization.Value()) + "\n" +
+		tableCells(contextWidths, catalogDetailStyle.Render("Sessão"), successStyle.Render("Autenticada")+fmt.Sprintf(" · %d projectos", len(m.projects)))
+	widths := []int{3, max(1, inner-21), 12}
+	selected := metadata("Seleccionado", m.selectedProjectLabel())
+	if m.projectCursor == 0 {
+		hint := "Catálogo de toda a organização."
+		if m.branchesOnly {
+			hint = "Escolhe um projecto para gerir branches."
 		}
+		selected += "\n" + catalogDetailStyle.Render(hint)
+	}
+	table := []string{catalogHeaderStyle.Width(inner).Render(tableCells(widths, "SEL", "PROJECTO", "ÂMBITO"))}
+	table = append(table, rows...)
+	table = append(table, borderStyle.Render(strings.Repeat("─", inner)), ansi.Wrap(selected, inner, ""))
+	if m.loading {
+		table = append(table, catalogDetailStyle.Render("A abrir a selecção..."))
+	}
+	return m.frame(
+		section("CONTEXTO", context, m.width),
+		section(fmt.Sprintf("2 · ESCOLHER PROJECTO · %d–%d / %d", start+1, end, len(m.projects)+1), strings.Join(table, "\n"), m.width),
+	)
+}
+
+func (m contextModel) projectCapacity() int {
+	// Measure the same sections we render, including wrapped names and diagnostics.
+	fixed := lipgloss.Height(m.projectView(nil, 0, 0))
+	return max(1, min(allProjectsCapacity, m.height-fixed))
+}
+
+func (m contextModel) frame(panels ...string) string {
+	inner := max(1, m.width-4)
+	brand := wordmarkStyle.Render("AZPIPE") + "  " + catalogDetailStyle.Render("AZURE DEVOPS / TUI")
+	if len(m.projects) == 0 && m.width >= 60 && m.height >= 24 {
+		brand = welcomeBrand()
 	}
 	if m.err != "" {
-		lines = append(lines, "", catalogWarningStyle.Render(textPage(m.err, width, m.errorScroll, 3)), "PgUp/PgDn: percorrer erro completo")
+		count := 3
+		if len(m.projects) > 0 {
+			count = 2
+			if m.height < defaultHeight {
+				count = 1
+			}
+		}
+		body := catalogWarningStyle.Render(textPage(m.err, inner, m.errorScroll, count)) + "\n" + shortcutBar(inner, "PgUp/PgDn percorrer erro")
+		panels = append(panels, section("ERRO", body, m.width))
 	}
+	help := shortcutBar(inner, "enter ligar", ":q sair")
 	if len(m.projects) > 0 {
-		lines = append(lines, "", shortcutBar(width, "enter abrir catálogo"), shortcutBar(width, "↑/↓ escolher projecto", "esc mudar organização"))
-	} else {
-		lines = append(lines, "", shortcutBar(width, "enter ligar", "esc voltar (se disponível)", ":q sair"))
+		primary := "enter abrir catálogo"
+		if m.branchesOnly {
+			primary = "enter abrir repositórios"
+		}
+		help = shortcutBar(inner, primary) + "\n" +
+			shortcutBar(inner, "↑/↓ escolher", "PgUp/PgDn página", "Home/End extremos", "esc mudar organização", ":q sair")
 	}
-	return ansi.Wrap(strings.Join(lines, "\n"), width, "")
+	if m.loading {
+		help = catalogDetailStyle.Render("Aguarda o carregamento.") + "\n" + shortcutBar(inner, ":q sair")
+	}
+	panels = append(panels, section("ACÇÕES", help, m.width))
+	prefix := brand + "\n\n"
+	view := prefix + strings.Join(panels, "\n\n")
+	if lipgloss.Height(view) > m.height {
+		view = prefix + strings.Join(panels, "\n")
+	}
+	return view
 }
 
 func loadProjects(factory ClientFactory, organization string, token operationToken) tea.Cmd {

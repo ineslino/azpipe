@@ -123,6 +123,12 @@ session, and lets you choose one project or **All projects**. It then lets you s
 multiple pipelines before any Azure DevOps run is created. Configured organization and
 project values are used as defaults when they match the returned context.
 
+Connection and project selection appear as two labelled steps. The project selector
+uses a table with the selected scope, visible range and total. Use `PgUp`/`PgDn` to
+move a page and `Home`/`End` to reach the first or last scope. With an error visible,
+`PgUp`/`PgDn` scroll the diagnostic instead. Esc returns to the organization field;
+`:q` followed by Enter exits, including when typed quickly or pasted.
+
 In **All projects** mode, azpipe lists pipeline definitions once per accessible project
 and retains the owning project on every pipeline. The catalog can therefore filter by
 project as well as by name, ID, folder, type, repository, or tag. Loading the complete
@@ -163,7 +169,8 @@ folder, tags and PLAN availability; `d` opens the complete metadata when values 
 | `h` | Browse previous batches in this context and resume monitoring without submitting runs |
 | `c` | Return to the project selector and change project scope |
 | `Enter` in a field | Finish editing and retain the filter or branch |
-| `PgUp` / `PgDn` | Page through review and execution rows; arrows select an item. In login/profile errors, page through the full message |
+| `PgUp` / `PgDn` | Page through projects, review and execution rows; arrows select an item. In login/profile errors, page through the full message |
+| `Home` / `End` | First / last scope in the project selector |
 | `d` | Open complete pipeline metadata; arrows scroll and Esc returns |
 | `b` | Edit the global branch, initially `main` |
 | `Enter` | Review the selection |

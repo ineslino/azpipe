@@ -53,11 +53,11 @@ func TestAllGuidedScreensFit(t *testing.T) {
 		b.demo = false
 		check("branch real review", b.View())
 		c := newContextModel(ContextDefaults{Organization: "example-org"})
-		c.width = size.Width - 4
-		c.height = size.Height - 2
-		check("login", section("LIGAÇÃO", c.view(), size.Width))
+		c.width = size.Width
+		c.height = size.Height
+		check("login", c.view())
 		c.err = strings.Repeat("Falha de autenticação. ", 20) + "RECUPERAR"
-		check("login error", section("LIGAÇÃO", c.view(), size.Width))
+		check("login error", c.view())
 		c.errorScroll = 1000
 		if !strings.Contains(c.view(), "RECUPERAR") {
 			t.Fatal("error tail inaccessible")
@@ -86,13 +86,13 @@ func TestFinalUXRegressions(t *testing.T) {
 		}
 	}
 	c := newContextModel(ContextDefaults{Organization: "example-org"})
-	c.width = 76
-	c.height = 22
+	c.width = 80
+	c.height = 24
 	for i := 0; i < 10; i++ {
 		c.projects = append(c.projects, azdo.Project{Name: strings.Repeat("Project-", 10)})
 	}
 	c.err = strings.Repeat("Failure ", 40) + "Recovery"
-	if len(strings.Split(section("CONTEXT", c.view(), 80), "\n")) > 24 {
+	if len(strings.Split(c.view(), "\n")) > 24 {
 		t.Fatal("project error hides footer")
 	}
 	for _, key := range []tea.KeyMsg{{Type: tea.KeyCtrlC}, {Type: tea.KeyCtrlD}} {

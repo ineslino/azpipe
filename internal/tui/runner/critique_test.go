@@ -2,6 +2,9 @@ package runner
 
 import (
 	"errors"
+	"fmt"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/ineslino/azpipe/internal/azdo"
 	domain "github.com/ineslino/azpipe/internal/runner"
@@ -70,6 +73,58 @@ func TestUnknownRunRecoveryAlongsideRunningRun(t *testing.T) {
 	for _, text := range []string{"confirma no Azure DevOps antes de repetir", "Esc → h", "resposta perdida"} {
 		if !strings.Contains(view, text) {
 			t.Fatalf("missing recovery instruction %q", text)
+		}
+	}
+}
+
+func TestCompactCatalogKeepsListAndDetailAccessible(t *testing.T) {
+	pipelines := make([]azdo.Pipeline, 20)
+	for i := range pipelines {
+		pipelines[i] = azdo.Pipeline{ID: i + 1, Name: fmt.Sprintf("pipeline-%02d", i), RepoName: "sample-repo"}
+	}
+	m := NewApp(nil, "test", pipelines)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = updated.(AppModel)
+	start, end := m.catalog.displayRange()
+	if end-start < 6 {
+		t.Fatalf("only %d rows visible", end-start)
+	}
+	if lipgloss.Height(m.View()) > 24 {
+		t.Fatal("catalog exceeds terminal")
+	}
+	if !strings.Contains(m.View(), "a/? abre acções, perfis e histórico") {
+		t.Fatal("menu missing from initial prompt")
+	}
+	m, _ = pressApp(t, m, "d")
+	if !strings.Contains(m.View(), "sample-repo") {
+		t.Fatal("full detail unavailable")
+	}
+	m, _ = pressApp(t, m, "esc")
+	if m.catalog.showDetails {
+		t.Fatal("detail did not close")
+	}
+}
+
+func TestBatchOutcomeSummary(t *testing.T) {
+	for _, tc := range []struct {
+		result        string
+		id            int
+		title, action string
+	}{
+		{"succeeded", 1, "Lote concluído com sucesso", "Todas as runs terminaram"},
+		{"failed", 1, "Lote terminado · existem runs sem sucesso", "seus logs antes de repetir"},
+		{"", 0, "Lote por confirmar", "confirma no Azure DevOps antes de repetir"},
+	} {
+		m := executionModel{queued: true, width: 76, height: 22, runs: []domain.RunResult{
+			{Run: azdo.PipelineRun{ID: 10, State: "completed", Result: "succeeded"}},
+			{Run: azdo.PipelineRun{ID: tc.id, State: "completed", Result: tc.result}},
+		}}
+		view := ansi.Strip(m.view())
+		if !strings.Contains(view, tc.title) || !strings.Contains(view, tc.action) {
+			t.Fatalf("incorrect outcome: %s", view)
+		}
+		if lipgloss.Height(view) > 22 {
+			t.Fatal("summary exceeds terminal")
 		}
 	}
 }

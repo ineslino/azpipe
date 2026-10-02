@@ -5,12 +5,26 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	domainrunner "github.com/ineslino/azpipe/internal/runner"
 )
 
 type catalogAction struct {
 	label, key, description, blocked string
+}
+
+func (a catalogAction) group() string {
+	switch a.key {
+	case "enter", "/", "x":
+		return "Seleccionar"
+	case "s", "l", "h":
+		return "Perfis e histórico"
+	case "c", "B":
+		return "Contexto"
+	default:
+		return "Configurar"
+	}
 }
 
 func (m AppModel) catalogActions() []catalogAction {
@@ -44,11 +58,14 @@ func (m AppModel) catalogActions() []catalogAction {
 	}
 	return []catalogAction{
 		{"Rever selecção", "enter", "Valida branch e parâmetros. Ainda não lança runs.", selection},
-		{"Configurar parâmetros da pipeline activa", "e", pipeline.Name + ": abre campos tipados do YAML.", activeReason},
-		{"Alternar RUN / PLAN da pipeline activa", "m", pipeline.Name + ": muda apenas esta pipeline seleccionada.", modeReason},
+		{"Procurar pipelines", "/", "Filtra por projecto, nome, ID, tipo, pasta, repositório ou tag.", ""},
+		{"Limpar selecções ocultas", "x", "Remove apenas selecções que a pesquisa actual esconde.", selection},
+		{"Configurar parâmetros da pipeline activa", "e", truncateWidth(pipeline.Name, max(12, m.width-40)) + ": abre campos tipados do YAML.", activeReason},
+		{"Alternar RUN / PLAN da pipeline activa", "m", truncateWidth(pipeline.Name, max(12, m.width-40)) + ": muda apenas esta pipeline seleccionada.", modeReason},
 		{"Aplicar PLAN a toda a selecção", "P", "Usa o contrato revisto de cada pipeline seleccionada.", planReason},
 		{"Aplicar RUN a toda a selecção", "R", "Execução normal de todas as pipelines seleccionadas.", selection},
 		{"Alterar branch da selecção", "b", "Aplica a mesma branch a todas as pipelines.", ""},
+		{"Editar parâmetros JSON (avançado)", "J", "Não contorna a validação do schema. Nunca uses segredos.", activeReason},
 		{"Guardar selecção como perfil", "s", "Guarda parâmetros não secretos após confirmação.", selection},
 		{"Carregar perfil", "l", "Substitui a selecção. Exige uma nova revisão.", ""},
 		{"Consultar lotes anteriores", "h", "Retoma monitorização sem submeter runs.", ""},
@@ -58,9 +75,6 @@ func (m AppModel) catalogActions() []catalogAction {
 			}
 			return ""
 		}()},
-		{"Procurar pipelines", "/", "Filtra por projecto, nome, ID, tipo, pasta, repositório ou tag.", ""},
-		{"Editar parâmetros JSON (avançado)", "J", "Não contorna a validação do schema. Nunca uses segredos.", activeReason},
-		{"Limpar selecções ocultas", "x", "Remove apenas selecções que a pesquisa actual esconde.", selection},
 		{"Gerir branches", "B", "Escolhe um repositório, filtra por criador e revê antes de eliminar.", ""},
 	}
 }
@@ -94,40 +108,47 @@ func (m AppModel) updateActions(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m AppModel) actionsView() string {
 	items := m.catalogActions()
 	index := *m.actions
-	capacity := max(1, (m.height-13)/2)
-	start := max(0, index-capacity+1)
-	end := min(len(items), start+capacity)
-	lines := []string{quantity(len(m.catalog.selected), "seleccionada", "seleccionadas") + " · escolhe com ↑/↓ e Enter"}
-	for i := start; i < end; i++ {
-		item := items[i]
-		group := "Configurar"
-		switch item.key {
-		case "enter", "/", "x":
-			group = "Seleccionar"
-		case "s", "l", "h":
-			group = "Perfis e histórico"
-		case "c", "B":
-			group = "Contexto"
+	inner := max(1, m.width-4)
+	render := func(start, end int) string {
+		lines := []string{quantity(len(m.catalog.selected), "seleccionada", "seleccionadas") + " · escolhe com ↑/↓ e Enter"}
+		lastGroup := ""
+		for i := start; i < end; i++ {
+			item := items[i]
+			if group := item.group(); group != lastGroup {
+				if lastGroup != "" {
+					lines = append(lines, "")
+				}
+				lines = append(lines, catalogHeaderStyle.Width(inner).Render(strings.ToUpper(group)))
+				lastGroup = group
+			}
+			label := fmt.Sprintf("  %-5s %s", item.key, item.label)
+			if item.blocked != "" {
+				label += " [indisponível]"
+			}
+			label = truncateWidth(label, inner)
+			if i == index {
+				label = catalogActiveStyle.Width(inner).Render(">" + label[1:])
+			} else if item.blocked != "" {
+				label = catalogDetailStyle.Render(label)
+			} else {
+				label = catalogTextStyle.Render(label)
+			}
+			lines = append(lines, label)
 		}
-		label := fmt.Sprintf("  %-5s %s · %s", item.key, group, item.label)
-		if item.blocked != "" {
-			label += " [indisponível]"
+		detail := items[index].description
+		if items[index].blocked != "" {
+			detail = items[index].blocked
 		}
-		label = truncateWidth(label, max(1, m.width-4))
-		if i == index {
-			label = catalogActiveStyle.Width(max(1, m.width-4)).Render(">" + label[1:])
-		} else if item.blocked != "" {
-			label = catalogDetailStyle.Render(label)
+		lines = append(lines, "", ansi.Wrap(detail, inner, ""), fmt.Sprintf("%d/%d", index+1, len(items)), shortcutBar(inner, "↑/↓ escolher", "enter abrir", "esc voltar"))
+		return section("ACÇÕES E AJUDA", strings.Join(lines, "\n"), m.width)
+	}
+	start, end := 0, len(items)
+	for lipgloss.Height(render(start, end)) > m.height-2 && end-start > 1 {
+		if end-1 > index {
+			end--
 		} else {
-			label = catalogTextStyle.Render(label)
+			start++
 		}
-		lines = append(lines, label, "")
 	}
-	item := items[index]
-	detail := item.description
-	if item.blocked != "" {
-		detail = item.blocked
-	}
-	lines = append(lines, "", ansi.Wrap(detail, max(1, m.width-4), ""), fmt.Sprintf("%d/%d", index+1, len(items)), shortcutBar(max(1, m.width-4), "↑/↓ escolher", "enter abrir", "esc voltar"))
-	return section("ACÇÕES E AJUDA", strings.Join(lines, "\n"), m.width)
+	return render(start, end)
 }

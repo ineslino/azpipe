@@ -209,8 +209,10 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, cmd
 	}
-	if key, ok := msg.(tea.KeyMsg); ok && key.String() == ":" && m.input == "" && !m.confirmation.Focused() {
-		return m, m.command.start(m.width)
+	if key, ok := msg.(tea.KeyMsg); ok && m.input == "" && !m.confirmation.Focused() {
+		if cmd, opened := m.command.startFromKey(key, m.width); opened {
+			return m, cmd
+		}
 	}
 	if key, ok := msg.(tea.KeyMsg); ok && m.showHelp && !m.busy && (key.Type == tea.KeyCtrlC || key.Type == tea.KeyCtrlD) {
 		if m.cancel != nil {
@@ -691,18 +693,25 @@ func (m BranchModel) originFiltersLabel() string {
 func (m BranchModel) View() string {
 	frameWidth := max(10, m.width)
 	if m.showHelp {
-		return section("BRANCHES · AJUDA", "\n/   Filtrar pelo nome\nu   Filtrar pelo criador\nR   Mostrar/ocultar remotas\nL   Mostrar/ocultar locais\nW   Mostrar/ocultar worktrees\na   Seleccionar todas as remotas visíveis\nc   Limpar filtros\n\nr   Actualizar\nb   Escolher repositório\n←/→ Percorrer detalhe e erros\n\nEsc Voltar\n:q  Sair\n?   Fechar ajuda", frameWidth)
+		view := section("BRANCHES · AJUDA", "/   Filtrar pelo nome\nu   Filtrar pelo criador\nR   Mostrar/ocultar remotas\nL   Mostrar/ocultar locais\nW   Mostrar/ocultar worktrees\na   Seleccionar todas as remotas visíveis\nc   Limpar filtros\n\nr   Actualizar\nb   Escolher repositório\n←/→ Percorrer detalhe e erros\n\nEsc Voltar\n:q  Sair\n?   Fechar ajuda", frameWidth)
+		if m.command.active {
+			view += "\n" + m.command.view(frameWidth)
+		}
+		return view
 	}
 	inner, widths, headers := branchTableLayout(frameWidth, m.stage)
-	lines := []string{catalogTitleStyle.Render(truncateWidth("GESTÃO DE BRANCHES", frameWidth)), m.breadcrumb(), ""}
+	prefix := wordmarkStyle.Render("AZPIPE") + "  " + catalogTitleStyle.Render("GESTÃO DE BRANCHES") + "\n" + truncateWidth(m.breadcrumb(), frameWidth) + "\n"
+	controlsTitle := "CONTEXTO"
+	var controls []string
 	var tableRows [][]string
 	var total int
 	var detail string
 	tableTitle := "RESULTADOS"
-	help := "↑/↓ navegar · enter abrir · r actualizar · esc anterior · :q sair"
+	help := shortcutBar(inner, "↑/↓ escolher", "enter abrir", "? ajuda", "esc anterior", ":q sair")
 	switch m.stage {
 	case "repos":
-		lines = append(lines, "Escolhe um repositório para abrir as branches", "")
+		controlsTitle = "ESCOLHER REPOSITÓRIO"
+		controls = append(controls, "Escolhe um repositório para abrir as branches.")
 		tableTitle = "REPOSITÓRIOS"
 		total = len(m.repos)
 		for _, repo := range m.repos {
@@ -713,7 +722,10 @@ func (m BranchModel) View() string {
 			detail = fmt.Sprintf("Repositório: %s\nBranch default: %s", repo.Name, repo.DefaultBranch)
 		}
 	case "list":
-		lines = append(lines, "Selecciona com espaço. Enter revê apenas branches remotas.", "Origens visíveis: "+m.originFiltersLabel(), m.filter.View(), m.creator.View(), "")
+		controlsTitle = "SELECÇÃO E FILTROS"
+		m.filter.Width = max(8, inner-ansi.StringWidth(m.filter.Prompt)-1)
+		m.creator.Width = max(8, inner-ansi.StringWidth(m.creator.Prompt)-1)
+		controls = append(controls, "", catalogDetailStyle.Render("Origens · R/L/W: "+m.originFiltersLabel()), m.filter.View(), m.creator.View())
 		tableTitle = "BRANCHES"
 		visible := m.visibleEntries()
 		total = len(visible)
@@ -735,11 +747,12 @@ func (m BranchModel) View() string {
 		if m.cursor < total {
 			entry := visible[m.cursor]
 			b := entry.branch()
-			detail = fmt.Sprintf("Origem: %s\nLocal: %s\nBranch: %s\nEstado: %s\nCriador: %s\nSHA: %s", entry.originLabel(), entry.locationLabel(), b.Name, branchState(b), branchCreator(b), b.ObjectID)
+			detail = fmt.Sprintf("Estado: %s\nBranch: %s\nOrigem: %s\nLocal: %s\nCriador: %s\nSHA: %s", branchState(b), b.Name, entry.originLabel(), entry.locationLabel(), branchCreator(b), b.ObjectID)
 		}
-		help = "espaço seleccionar remote · a todas as remote · R/L/W filtrar origem · enter rever · esc anterior · :q sair"
+		help = shortcutBar(inner, "espaço seleccionar remota", "enter rever") + "\n" + shortcutBar(inner, "/ nome", "u criador", "? ajuda", "esc anterior", ":q sair")
 	case "review":
-		lines = append(lines, "REVER ELIMINAÇÃO · branches remotas", "Confirma o repositório, os nomes e os SHAs.", "Isto não confirma que os commits já foram integrados.", "")
+		controlsTitle = "REVER ELIMINAÇÃO · REMOTAS"
+		controls = append(controls, "Confirma o repositório, os nomes e os SHAs.", "Isto não confirma que os commits já foram integrados.")
 		tableTitle = "REVISÃO"
 		total = len(m.reviewed)
 		for _, b := range m.reviewed {
@@ -757,9 +770,10 @@ func (m BranchModel) View() string {
 			b := m.reviewed[m.cursor]
 			detail = fmt.Sprintf("SHA: %s\nBranch: %s\nEstado: %s\nCriador: %s", b.ObjectID, b.Name, branchState(b), branchCreator(b))
 		}
-		help = "↑/↓ rever lista · esc voltar · enter confirmar"
+		help = shortcutBar(inner, "↑/↓ rever lista", "esc voltar", "enter confirmar")
 	case "results":
-		lines = append(lines, "RESULTADOS · sem repetição automática", "")
+		controlsTitle = "RESULTADO DO LOTE"
+		controls = append(controls, "Sem repetição automática.")
 		tableTitle = "RESULTADOS"
 		total = len(m.results)
 		for _, result := range m.results {
@@ -768,45 +782,8 @@ func (m BranchModel) View() string {
 		if m.cursor < total {
 			detail = m.results[m.cursor]
 		}
-		help = "↑/↓ navegar · r actualizar branches · b repos · esc anterior · :q sair"
+		help = shortcutBar(inner, "↑/↓ escolher", "r actualizar", "b repositórios", "esc anterior", ":q sair")
 	}
-	reserve := 16
-	if m.stage == "review" && !m.demo {
-		reserve += 2
-	}
-	if m.err != "" {
-		reserve += 3
-	}
-	capacity := max(1, m.height-len(lines)-reserve)
-	if m.height >= 30 {
-		capacity = max(1, capacity/2)
-	}
-	start := max(0, m.cursor-capacity+1)
-	if start > total {
-		start = max(0, total-capacity)
-	}
-	end := min(total, start+capacity)
-	selectedRows := map[int]bool{}
-	if m.stage == "list" {
-		for index := start; index < end; index++ {
-			if m.isSelected(m.visibleEntries()[index]) {
-				selectedRows[index-start] = true
-			}
-		}
-	}
-	table := renderBranchTable(inner, widths, headers, tableRows[start:end], m.cursor-start, selectedRows)
-	if m.height >= 30 {
-		rows := strings.Split(table, "\n")
-		spaced := []string{rows[0], ""}
-		for _, row := range rows[1:] {
-			spaced = append(spaced, row, "")
-		}
-		table = strings.Join(spaced, "\n")
-	}
-	if total == 0 {
-		table = renderBranchTable(inner, widths, headers, nil, -1, nil)
-	}
-	lines = append(lines, strings.Split(section(fmt.Sprintf("%s %d–%d / %d", tableTitle, min(start+1, total), end, total), table, frameWidth), "\n")...)
 	hidden := 0
 	if m.stage == "list" {
 		visibleSelected := 0
@@ -816,43 +793,70 @@ func (m BranchModel) View() string {
 			}
 		}
 		hidden = len(m.selected) - visibleSelected
+		controls[0] = fmt.Sprintf("%s · %s pelo filtro · só remotas", quantity(len(m.selected), "seleccionada", "seleccionadas"), quantity(hidden, "oculta", "ocultas"))
 	}
-	lines = append(lines, "", fmt.Sprintf("%d/%d · %s (%s pelo filtro)", min(m.cursor+1, total), total, quantity(len(m.selected), "seleccionada", "seleccionadas"), quantity(hidden, "oculta", "ocultas")))
+	detailCount := 4
+	if m.height < 28 {
+		detailCount = 2
+	}
 	if detail != "" {
-		wrapped := strings.Split(ansi.Wrap(detail, max(1, frameWidth-8), ""), "\n")
-		offset := min(m.detailOffset, max(0, len(wrapped)-4))
-		wrapped = wrapped[offset:min(len(wrapped), offset+4)]
-		lines = append(lines, strings.Split(section("DETALHE · ←/→ deslocar", strings.Join(wrapped, "\n"), frameWidth), "\n")...)
+		detail = textPage(detail, inner, m.detailOffset, detailCount)
 	}
+	var footer []string
 	if m.stage == "review" {
 		if m.demo {
-			lines = append(lines, "Exemplo de revisão: Esc volta à selecção. Eliminação indisponível.")
+			footer = append(footer, catalogDetailStyle.Render(ansi.Wrap("Exemplo de revisão. Eliminação indisponível.", inner, "")))
 		} else {
-			lines = append(lines, fmt.Sprintf("Vai eliminar %s de %s / %s.", quantity(len(m.reviewed), "branch", "branches"), m.project, m.repo.Name), "Escreve ELIMINAR e prime Enter para eliminar as branches remotas.", m.confirmation.View())
+			footer = append(footer, catalogWarningStyle.Render(ansi.Wrap(fmt.Sprintf("Vai eliminar %s de %s / %s.", quantity(len(m.reviewed), "branch", "branches"), m.project, m.repo.Name), inner, "")), "Escreve ELIMINAR e prime Enter para eliminar.", m.confirmation.View())
 		}
 	}
 	if m.busy {
-		lines = append(lines, "A processar… Esc ou :q cancela o restante lote.")
-	}
-	if m.err != "" {
-		lines = append(lines, "", catalogWarningStyle.Render(horizontalWindow("Erro: "+m.err, m.detailOffset*20, inner)), "←/→ percorrer erro completo")
+		footer = append(footer, catalogDetailStyle.Render(ansi.Wrap("A processar… Esc ou :q cancela o restante lote.", inner, "")))
 	}
 	if m.demo {
-		lines = append(lines, "DEMO OFFLINE · não elimina branches")
+		footer = append(footer, catalogDetailStyle.Render("DEMO OFFLINE · não elimina branches"))
 	}
 	if m.stage == "review" && m.demo {
-		help = "↑/↓ rever lista · esc voltar à selecção · :q sair"
+		help = shortcutBar(inner, "↑/↓ rever lista", "esc voltar à selecção", ":q sair")
 	} else if m.input != "" {
-		help = "A filtrar branches · enter terminar pesquisa · esc voltar à lista"
+		help = shortcutBar(inner, "enter terminar pesquisa", "esc voltar à lista")
 	} else if m.stage != "review" && m.returnToCatalog {
-		help += " · esc voltar ao catálogo"
+		help = strings.ReplaceAll(help, "anterior", "catálogo")
 	}
-	lines = append(lines, strings.Split(ansi.Wrap(help, inner, ""), "\n")...)
-	if m.command.active {
-		lines = append(lines, m.command.view(frameWidth))
+	footer = append(footer, help)
+	compact := m.height < 28 && m.stage != "review"
+	render := func(start, end int) string {
+		selectedRows := map[int]bool{}
+		if m.stage == "list" {
+			for index := start; index < end; index++ {
+				selectedRows[index-start] = m.isSelected(m.visibleEntries()[index])
+			}
+		}
+		table := renderBranchTable(inner, widths, headers, tableRows[start:end], m.cursor-start, selectedRows)
+		if compact && detail != "" {
+			table += "\n" + borderStyle.Render(strings.Repeat("─", inner)) + "\n" + catalogDetailStyle.Render(detail)
+		}
+		panels := []string{section(controlsTitle, strings.Join(controls, "\n"), frameWidth), section(fmt.Sprintf("%s %d–%d / %d · ←/→ detalhe", tableTitle, min(start+1, total), end, total), table, frameWidth)}
+		if !compact && detail != "" {
+			panels = append(panels, section("DETALHE · ←/→ deslocar", detail, frameWidth))
+		}
+		if m.err != "" {
+			panels = append(panels, section("ERRO · ←/→ percorrer", catalogWarningStyle.Render(horizontalWindow(m.err, m.detailOffset*20, inner)), frameWidth))
+		}
+		panels = append(panels, section("ACÇÕES", strings.Join(footer, "\n"), frameWidth))
+		separator := "\n"
+		if m.height >= 30 {
+			separator = "\n\n"
+		}
+		view := prefix + strings.Join(panels, separator)
+		if m.command.active {
+			view += "\n" + m.command.view(frameWidth)
+		}
+		return view
 	}
-	for i, line := range lines {
-		lines[i] = ansi.Truncate(line, frameWidth, "…")
-	}
-	return strings.Join(lines, "\n")
+	// One measured row fixes the space left for the table; no guessed reservation.
+	capacity := max(1, 1+m.height-lipgloss.Height(render(0, min(1, total))))
+	start := min(max(0, m.cursor-capacity+1), max(0, total-capacity))
+	end := min(total, start+capacity)
+	return render(start, end)
 }

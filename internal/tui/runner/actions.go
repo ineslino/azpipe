@@ -60,6 +60,7 @@ func (m AppModel) catalogActions() []catalogAction {
 		}()},
 		{"Procurar pipelines", "/", "Filtra por projecto, nome, ID, tipo, pasta, repositório ou tag.", ""},
 		{"Editar parâmetros JSON (avançado)", "J", "Não contorna a validação do schema. Nunca uses segredos.", activeReason},
+		{"Limpar selecções ocultas", "x", "Remove apenas selecções que a pesquisa actual esconde.", selection},
 		{"Gerir branches", "B", "Escolhe um repositório, filtra por criador e revê antes de eliminar.", ""},
 	}
 }
@@ -99,7 +100,16 @@ func (m AppModel) actionsView() string {
 	lines := []string{quantity(len(m.catalog.selected), "seleccionada", "seleccionadas") + " · escolhe com ↑/↓ e Enter"}
 	for i := start; i < end; i++ {
 		item := items[i]
-		label := fmt.Sprintf("  %-5s %s", item.key, item.label)
+		group := "Configurar"
+		switch item.key {
+		case "enter", "/", "x":
+			group = "Seleccionar"
+		case "s", "l", "h":
+			group = "Perfis e histórico"
+		case "c", "B":
+			group = "Contexto"
+		}
+		label := fmt.Sprintf("  %-5s %s · %s", item.key, group, item.label)
 		if item.blocked != "" {
 			label += " [indisponível]"
 		}

@@ -165,7 +165,7 @@ func (m reviewModel) view() string {
 		columns = []int{2, 8, 4, 5, 12, max(1, width-46)}
 		headers = []string{"", "ESTADO", "MODO", "ID", "PROJECTO", "PIPELINE"}
 	}
-	lines := []string{catalogTitleStyle.Render(fmt.Sprintf("Revisão · %s · %s · %s", quantity(len(m.reviews), "pipeline", "pipelines"), quantity(ready, "pronta", "prontas"), quantity(blocked, "bloqueada", "bloqueadas"))), catalogHeaderStyle.Width(width).Render(tableCells(columns, headers...))}
+	lines := []string{catalogTitleStyle.Render(fmt.Sprintf("Revisão · %s · %s · %s", quantity(ready, "pronta", "prontas"), quantity(blocked, "bloqueada", "bloqueadas"), quantity(len(m.reviews)-ready-blocked, "pendente", "pendentes"))), catalogHeaderStyle.Width(width).Render(tableCells(columns, headers...))}
 	if m.demo {
 		lines[0] = catalogTitleStyle.Render(fmt.Sprintf("Revisão de exemplo · %s · sem execução remota", quantity(len(m.reviews), "pipeline", "pipelines")))
 	}

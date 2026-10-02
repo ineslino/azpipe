@@ -301,6 +301,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.review.reviews = typed.reviews
+		for i, review := range typed.reviews {
+			if review.Err != nil {
+				m.review.offset = i
+				break
+			}
+		}
 		if m.review.canExecute() {
 			return m, m.review.confirmation.Focus()
 		}
@@ -550,7 +556,12 @@ func (m AppModel) View() string {
 			view = section("LIGAÇÃO AO AZURE DEVOPS", view, m.width)
 		case ScreenCatalog:
 			catalog := m.catalog
-			view = m.contextHeader() + catalog.View()
+			header := m.contextHeader()
+			if m.height >= 36 && m.width >= 60 && !catalog.showDetails && catalog.input == inputNone {
+				header = welcomeBrand() + "\n" + header
+				catalog.height -= 10
+			}
+			view = header + catalog.View()
 		case ScreenReview:
 			view = m.contextHeader() + section("VALIDAÇÃO DO LOTE", m.review.view(), m.width)
 		case ScreenExecution:

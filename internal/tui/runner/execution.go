@@ -240,9 +240,12 @@ func (m executionModel) view() string {
 	} else if !hasNonTerminalRun(m.runs) && m.queued {
 		status = "Acompanhamento terminado · sem runs conhecidas pendentes"
 	}
+	if !m.demo && m.queued && unknown > 0 {
+		status = "ID incerto: confirma no Azure DevOps antes de repetir o RUN."
+	}
 	lines = append(lines, "", catalogDetailStyle.Render(status), "", footer)
 	if !m.demo && m.queued {
-		lines = append(lines, "Sair não cancela as runs aceites.")
+		lines = append(lines, "Sair não cancela runs. Esc → h abre o histórico do lote.")
 	}
 	return strings.Join(lines, "\n")
 }

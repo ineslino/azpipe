@@ -218,3 +218,37 @@ func TestReviewPagesNeverSkipAndFit(t *testing.T) {
 		}
 	}
 }
+
+func TestInitialScreenCommandQuitPreservesOrganization(t *testing.T) {
+	m := NewBootstrapApp(nil, ContextDefaults{Organization: "example-org"})
+	m, _ = pressApp(t, m, ":")
+	if !m.command.active {
+		t.Fatal("initial screen does not open : command")
+	}
+	m, _ = pressApp(t, m, "q")
+	m, cmd := pressApp(t, m, "enter")
+	if cmd == nil {
+		t.Fatal("missing quit command")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatal(":q did not quit")
+	}
+	if m.context.organization.Value() != "example-org" {
+		t.Fatal("command modified organization")
+	}
+}
+
+func TestInitialScreenURLAndCommandCancel(t *testing.T) {
+	m := NewBootstrapApp(nil, ContextDefaults{})
+	for _, r := range "https://dev.azure.com/example-org" {
+		m, _ = pressApp(t, m, string(r))
+	}
+	if m.command.active || m.context.organization.Value() != "https://dev.azure.com/example-org" {
+		t.Fatal("URL typing was intercepted")
+	}
+	m, _ = pressApp(t, m, ":")
+	m, _ = pressApp(t, m, "esc")
+	if m.command.active || m.context.organization.Value() != "https://dev.azure.com/example-org" {
+		t.Fatal("command cancellation changed input")
+	}
+}

@@ -153,7 +153,15 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 		}
-		if key.String() == ":" && !m.commandInputActive() {
+		contextCommand := m.screen == ScreenContext && m.library == nil
+		if contextCommand && m.context.organization.Focused() {
+			value := m.context.organization.Value()
+			// Preserve the scheme separator while typing an organization URL.
+			if (value == "https" || value == "http") && m.context.organization.Position() == len(value) {
+				contextCommand = false
+			}
+		}
+		if key.String() == ":" && (!m.commandInputActive() || contextCommand) {
 			if m.screen == ScreenExecution && !m.execution.queued {
 				return m, nil
 			}

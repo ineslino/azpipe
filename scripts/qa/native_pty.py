@@ -93,7 +93,12 @@ class Terminal:
     def send(self, text, duration=.25):
         os.write(self.fd, text.encode()); self.read(duration)
     def capture(self, suffix, required=(), absent=()):
-        view = "\n".join("".join(row).rstrip() for row in self.lines).rstrip()
+        deadline = time.monotonic()+5
+        while True:
+            view = "\n".join("".join(row).rstrip() for row in self.lines).rstrip()
+            if all(label in view for label in required) or time.monotonic() >= deadline:
+                break
+            self.read(.1)
         for label in required: assert label in view, (self.name, suffix, "missing", label, view)
         for label in absent: assert label not in view, (self.name, suffix, "unexpected", label, view)
         (captures / (self.name+"-"+suffix+".txt")).write_text(view+"\n")
@@ -272,7 +277,7 @@ def schema_cancellation(t):
     t.capture("cancelled", ("Leitura de parâmetros cancelada",), ("CONFIGURAR PARÂMETROS",))
     t.read(2)
     t.capture("late-discarded", ("Leitura de parâmetros cancelada",), ("CONFIGURAR PARÂMETROS",))
-    t.send("e", 2.8)
+    t.send("e", .25)
     t.capture("reopened", ("Etiqueta", "Valor: alpha beta"))
     t.send("\x1b", .35)
     t.finish(":q", True)

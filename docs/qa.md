@@ -19,6 +19,8 @@ It isolates local configuration, stores text/ANSI captures, checks 60×24, 80×2
 120×40, `NO_COLOR`, resize, filtering, fields/options (including long equal prefixes), history, review, monitoring,
 branch review, auth errors and cancellation. A light-background run sets
 `AZPIPE_QA_LIGHT=1`. No real Azure runs or deletes are made.
+Captures wait up to five seconds for the required state, then enforce the same
+presence/absence assertions; slow rendering is not treated as a completed screen.
 
 Continuity scenarios also exercise editing a YAML default with Ctrl+W and reopening
 the form, retaining selection/filter/branch/parameters in the same project, resetting

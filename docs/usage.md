@@ -127,6 +127,8 @@ Connection and project selection appear as two labelled steps. The project selec
 uses a table with the selected scope, visible range and total. Press `/` to search
 project names or IDs; Enter or Esc finishes editing the search without opening a
 project. Press `c` to clear the filter. An empty result cannot open All projects.
+When no projects match, the footer offers clearing or editing the search instead
+of opening a scope.
 Use `PgUp`/`PgDn` to move a page and `Home`/`End` to reach the first or last visible
 scope. With an error visible, `PgUp`/`PgDn` scroll the diagnostic instead.
 Esc returns to the organization field;
@@ -185,7 +187,7 @@ folder, tags and PLAN availability; `d` opens the complete metadata when values 
 | `PgUp` / `PgDn` | Page through projects, review and execution rows; arrows select an item. In login/profile errors, page through the full message |
 | `Home` / `End` | First / last scope in the project selector |
 | `d` | Open complete pipeline metadata; arrows scroll and Esc returns |
-| `b` | Edit the global branch, initially `main` |
+| `b` | Edit the global branch, initially `main`; applies to current and future selections and replaces per-pipeline profile branches |
 | `Enter` | Review the selection |
 | `Esc` | Finish project search, cancel context reads, leave the current input or return to the catalog without losing the selection |
 | `:q` / `:quit` | Exit explicitly; plain `q` is not an exit shortcut |
@@ -263,7 +265,9 @@ Profiles and batch journals use separate `profiles/` and `runs/` directories und
 Set `AZPIPE_DATA_DIR` to an absolute directory to relocate both. Files are created
 with mode 0600. Profiles contain parameter values in plaintext: never store secrets.
 Profile branches are retained per pipeline, and all-project profiles also retain the
-owning project for each selection. Editing `b` applies one global branch.
+owning project for each selection. Confirming a global branch edit with `b` and
+Enter replaces these per-pipeline branches and applies the global value to current
+and future selections. Esc cancels the edit and retains the profile branches.
 
 Press `h` to browse saved batches and resume one. The dashboard counts queued,
 running, successful, failed and unknown-ID runs; accepted runs retain their URLs.

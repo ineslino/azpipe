@@ -64,7 +64,7 @@ func (m AppModel) catalogActions() []catalogAction {
 		{"Alternar RUN / PLAN da pipeline activa", "m", truncateWidth(pipeline.Name, max(12, m.width-40)) + ": muda apenas esta pipeline seleccionada.", modeReason},
 		{"Aplicar PLAN a toda a selecção", "P", "Usa o contrato revisto de cada pipeline seleccionada.", planReason},
 		{"Aplicar RUN a toda a selecção", "R", "Execução normal de todas as pipelines seleccionadas.", selection},
-		{"Alterar branch da selecção", "b", "Aplica a mesma branch a todas as pipelines.", ""},
+		{"Alterar branch global", "b", "Aplica às pipelines actuais e futuras. Substitui branches específicas de perfis.", ""},
 		{"Editar parâmetros JSON (avançado)", "J", "Não contorna a validação do schema. Nunca uses segredos.", activeReason},
 		{"Guardar selecção como perfil", "s", "Guarda parâmetros não secretos após confirmação.", selection},
 		{"Carregar perfil", "l", "Substitui a selecção. Exige uma nova revisão.", ""},

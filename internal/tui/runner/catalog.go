@@ -68,7 +68,7 @@ func NewCatalogModel(pipelines []azdo.Pipeline) CatalogModel {
 	search.CharLimit = 256
 
 	branch := textinput.New()
-	branch.Prompt = "Branch: "
+	branch.Prompt = "Branch global: "
 	branch.SetValue("main")
 	branch.Width = 40
 	branch.CharLimit = 256
@@ -393,7 +393,7 @@ func (m CatalogModel) selectionView() string {
 		m.search.View(),
 	}
 	if m.input == inputBranch {
-		m.branch.Width = max(8, inner-9)
+		m.branch.Width = max(8, inner-ansi.StringWidth(m.branch.Prompt)-1)
 		lines = append(lines, m.branch.View())
 	}
 	if m.input == inputParameters {
@@ -530,6 +530,9 @@ func (m CatalogModel) catalogCapacity() int {
 func (m CatalogModel) helpView() string {
 	if m.input == inputSearch {
 		return shortcutBar(max(1, m.width-4), "enter terminar pesquisa", "esc voltar à lista")
+	}
+	if m.input == inputBranch {
+		return shortcutBar(max(1, m.width-4), "enter aplicar a todas", "esc cancelar edição")
 	}
 	if m.input != inputNone {
 		return shortcutBar(max(1, m.width-4), "enter guardar e voltar à lista", "esc cancelar edição")

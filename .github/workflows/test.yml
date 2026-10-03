@@ -67,7 +67,7 @@ jobs:
         env:
           AZPIPE_QA_LIGHT: '1'
           AZPIPE_QA_CAPTURE_DIR: ${{ runner.temp }}/azpipe-qa-captures/light
-        run: python scripts/qa/native_pty.py "$AZPIPE_TEST_BINARY" catalog-80 branches-80
+        run: python scripts/qa/native_pty.py "$AZPIPE_TEST_BINARY" catalog-80 branches-80 many-options-60 many-options-80 many-options-120 command-history-80 command-branches-80
       - name: Archive, checksum and extracted executable
         run: python scripts/qa/package.py "$AZPIPE_TEST_BINARY" '${{ matrix.target }}' '${{ runner.temp }}/azpipe-package'
       - uses: actions/upload-artifact@v4

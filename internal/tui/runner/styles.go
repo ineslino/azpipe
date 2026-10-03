@@ -81,6 +81,11 @@ func welcomeBrand() string {
 		catalogDetailStyle.Render("Selecciona, revê e acompanha execuções em paralelo.")), "\n")
 }
 
+// A stable full-screen height prevents overlay closure from erasing unchanged borders.
+func terminalView(view string, height int) string {
+	return view + strings.Repeat("\n", max(0, height-lipgloss.Height(view)))
+}
+
 func section(title, body string, width int) string {
 	if width <= 0 {
 		width = defaultWidth

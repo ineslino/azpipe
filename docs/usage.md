@@ -253,6 +253,12 @@ value untouched; Enter chooses an option. Invalid input focuses its field and Pg
 complete error. Catalog search follows the project selector: Esc retains the filter,
 Ctrl+U clears it while editing, and selected hidden rows stay selected.
 
+The choices show the focused position and total count. List capacity follows the
+rendered detail and shortcuts at 60×24, 80×24 and 120×40, including after resize.
+With the command bar open, Esc closes that bar only. History, branch review and
+pending reads remain active; another Esc applies the screen's usual return or
+cancellation action.
+
 Simple type labels in the Portuguese form use `texto` and `número`; the underlying
 YAML types remain `string` and `number`. Catalog search uses the shared adaptive
 text styles for its placeholder and entered value.

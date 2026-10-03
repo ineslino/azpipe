@@ -91,12 +91,12 @@ Use `AZDO_PAT` injected by your credential mechanism and `AZDO_ORG` for context,
 | Arrows / `j` / `k` | Navigate |
 | `/` / Space | Filter / select; Esc retains the filter and Ctrl+U clears it while searching |
 | `m` / `P` / `R` | Toggle mode / PLAN for selection / RUN for selection |
-| `e` / `b` | Typed parameters / branch; F2 inspects choices without changing a value |
+| `e` / `b` | Typed parameters / branch; F2 shows paged choices, position and complete value without changing it |
 | `s` / `l` / `h` | Save profile / load profile / history |
 | `c` | Change project or return to **All projects** |
 | `B` | Open branch management for the selected project and repository |
 | Enter / Esc | Review / go back without submitting; Esc goes back and never exits the TUI |
-| `:` / `:q` | Open commands / exit explicitly |
+| `:` / `:q` | Open commands / exit explicitly; Esc closes only the command bar |
 
 CLI example, preview only, using a selection file prepared as described in the guide:
 

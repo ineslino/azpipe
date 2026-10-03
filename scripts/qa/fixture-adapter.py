@@ -3,7 +3,7 @@ import json, os, sys, time
 
 args = sys.argv[1:]
 mode = os.environ.get("AZPIPE_FIXTURE_MODE")
-schema_modes = ("long-options", "continuity", "slow-schema")
+schema_modes = ("long-options", "many-options", "many-options-50", "continuity", "slow-schema")
 if args[1:] == ["whoami"]:
     if os.environ.get("AZPIPE_FIXTURE_MODE") == "identity-error":
         sys.exit(1)
@@ -35,7 +35,11 @@ elif mode in schema_modes and (area, resource) == ("git", "refs"):
     branch = next((a[len("filter="):] for a in args if a.startswith("filter=")), "heads/main")
     print(json.dumps({"value": [{"name": "refs/"+branch, "objectId": "a"*40}]}))
 elif mode in schema_modes and (area, resource) == ("git", "items"):
-    if mode == "long-options":
+    if mode in ("many-options", "many-options-50"):
+        prefix = "destino-"*40
+        options = [prefix+"fim-%02d" % i for i in range(50 if mode == "many-options-50" else 12)]
+        yaml = "parameters:\n- name: environment\n  displayName: Ambiente\n  type: string\n  default: "+options[0]+"\n  values: "+json.dumps(options)+"\n"
+    elif mode == "long-options":
         prefix = "destino-"*40
         yaml = "parameters:\n- name: environment\n  displayName: Ambiente\n  type: string\n  default: "+prefix+"test\n  values: ["+prefix+"test, "+prefix+"prod]\n"
     else:

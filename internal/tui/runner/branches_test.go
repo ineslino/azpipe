@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ineslino/azpipe/internal/azdo"
 	domainrunner "github.com/ineslino/azpipe/internal/runner"
+	"github.com/muesli/termenv"
 )
 
 type branchFake struct {
@@ -45,6 +46,83 @@ func (f *branchFake) DeleteBranch(_ context.Context, _, _ string, b azdo.Branch)
 func branchKey(m BranchModel, key tea.KeyMsg) (BranchModel, tea.Cmd) {
 	u, c := m.Update(key)
 	return u.(BranchModel), c
+}
+
+func BenchmarkBranchView(b *testing.B) {
+	profile, dark := lipgloss.ColorProfile(), lipgloss.HasDarkBackground()
+	b.Cleanup(func() {
+		lipgloss.SetColorProfile(profile)
+		lipgloss.SetHasDarkBackground(dark)
+	})
+	lipgloss.SetColorProfile(termenv.ANSI256)
+	lipgloss.SetHasDarkBackground(true)
+	for _, count := range []int{1000, 10000} {
+		b.Run(fmt.Sprint(count), func(b *testing.B) {
+			m := NewBranchDemo()
+			defer m.cancel()
+			m.width, m.height = 60, 24
+			m.branches, m.entries = nil, nil
+			for i := 0; i < count; i++ {
+				branch := azdo.Branch{Name: fmt.Sprintf("refs/heads/feat/sample-%d", i), ObjectID: strings.Repeat("a", 40)}
+				branch.Creator.DisplayName = "Fixture User"
+				m.branches = append(m.branches, branch)
+				m.entries = append(m.entries, remoteBranchEntry(branch))
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_ = m.View()
+			}
+		})
+	}
+}
+
+func TestBranchViewPagesLargeListsWithoutLosingSelection(t *testing.T) {
+	for _, count := range []int{1000, 10000} {
+		for _, size := range [][2]int{{60, 24}, {80, 24}, {120, 40}} {
+			m := NewBranchDemo()
+			t.Cleanup(m.cancel)
+			m.width, m.height = size[0], size[1]
+			m.branches, m.entries = nil, nil
+			for i := 0; i < count; i++ {
+				branch := azdo.Branch{Name: fmt.Sprintf("refs/heads/sample-%05d", i), ObjectID: strings.Repeat("a", 40)}
+				m.entries = append(m.entries, remoteBranchEntry(branch))
+			}
+			last := m.entries[count-1]
+			m.cursor, m.selected[last.key()] = count-1, true
+			view := m.View()
+			if lipgloss.Width(view) > size[0] || lipgloss.Height(view) > size[1] {
+				t.Fatalf("large list overflow at %v", size)
+			}
+			if !strings.Contains(view, ">[x]") || !strings.Contains(view, last.name()) || strings.Contains(view, "sample-00000") {
+				t.Fatalf("last page lost cursor, selection or pagination:\n%s", view)
+			}
+			m.filter.SetValue("sample-00000")
+			m.cursor = 0
+			view = m.View()
+			if !strings.Contains(view, "1 oculta") || !strings.Contains(view, "sample-00000") || len(m.selected) != 1 {
+				t.Fatalf("filter lost the hidden selection:\n%s", view)
+			}
+		}
+	}
+}
+
+func TestBranchViewCountsOnlySelectedRemoteOrigins(t *testing.T) {
+	m := NewBranchDemo()
+	defer m.cancel()
+	m.entries = []branchEntry{
+		remoteBranchEntry(azdo.Branch{Name: "refs/heads/shared"}),
+		localBranchEntry("shared", "", "/fixture", branchOriginLocal),
+		localBranchEntry("shared", "", "/fixture-worktree", branchOriginWorktree),
+	}
+	m.selected[m.entries[0].key()] = true
+	if view := m.View(); !strings.Contains(view, "0 ocultas") || strings.Contains(view, "-2 ocultas") {
+		t.Fatalf("local aliases changed the remote selection count:\n%s", view)
+	}
+	m.originFilter[branchOriginRemote] = false
+	if view := m.View(); !strings.Contains(view, "1 oculta") || strings.Contains(view, "[x]") {
+		t.Fatalf("hidden remote selection leaked into local rows:\n%s", view)
+	}
 }
 
 func TestBranchCancellationStopsRemainingDeletes(t *testing.T) {

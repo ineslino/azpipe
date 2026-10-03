@@ -87,7 +87,12 @@ func newConsole(t *testing.T, binary string, args []string, width, height int16)
 	if err = attrs.Update(windows.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, pcValue, unsafe.Sizeof(c.pc)); err != nil {
 		t.Fatal(err)
 	}
-	si := &windows.StartupInfoEx{StartupInfo: windows.StartupInfo{Cb: uint32(unsafe.Sizeof(windows.StartupInfoEx{}))}, ProcThreadAttributeList: attrs.List()}
+	// Null standard handles with STARTF_USESTDHANDLES prevent a redirected CI
+	// parent from duplicating its pipes into the child instead of using ConPTY.
+	si := &windows.StartupInfoEx{StartupInfo: windows.StartupInfo{
+		Cb:    uint32(unsafe.Sizeof(windows.StartupInfoEx{})),
+		Flags: windows.STARTF_USESTDHANDLES,
+	}, ProcThreadAttributeList: attrs.List()}
 	line, err := windows.UTF16PtrFromString(windows.ComposeCommandLine(append([]string{binary}, args...)))
 	if err != nil {
 		t.Fatal(err)
@@ -150,6 +155,23 @@ func (c *console) finish(t *testing.T, name string) {
 		if err := os.WriteFile(filepath.Join(dir, name+".ansi"), c.raw.Bytes(), 0600); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestConPTYOutputRouting(t *testing.T) {
+	binary := os.Getenv("AZPIPE_TEST_BINARY")
+	if binary == "" {
+		t.Skip("set AZPIPE_TEST_BINARY to the built native executable")
+	}
+	c := newConsole(t, binary, []string{"--version"}, 80, 24)
+	c.expect(t, "azpipe version")
+	status, err := windows.WaitForSingleObject(c.process, 5000)
+	if err != nil || status != windows.WAIT_OBJECT_0 {
+		t.Fatalf("ConPTY version exit: status=%v err=%v", status, err)
+	}
+	var code uint32
+	if err := windows.GetExitCodeProcess(c.process, &code); err != nil || code != 0 {
+		t.Fatalf("ConPTY version exit=%d err=%v", code, err)
 	}
 }
 

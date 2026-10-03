@@ -34,6 +34,7 @@ type AppModel struct {
 	contextClient azdo.Client
 	contextCancel context.CancelFunc
 	previewCancel context.CancelFunc
+	schemaCancel  context.CancelFunc
 	catalog       CatalogModel
 	review        reviewModel
 	execution     executionModel
@@ -165,6 +166,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.cancelContextLoad()
 				m.cancelPreview()
+				m.cancelSchemaLoad()
 				return m, tea.Quit
 			case commandBack:
 				return m.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -194,6 +196,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if key, ok := msg.(tea.KeyMsg); ok && (key.Type == tea.KeyCtrlC || key.Type == tea.KeyCtrlD) {
 		m.cancelContextLoad()
 		m.cancelPreview()
+		m.cancelSchemaLoad()
 		return m, tea.Quit
 	}
 	if key, ok := msg.(tea.KeyMsg); ok && key.Type == tea.KeyEsc && m.screen == ScreenContext && m.context.loading {
@@ -201,6 +204,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.invalidateOperation()
 		m.context.loading = false
 		m.context.notice = "Leitura cancelada. Enter volta a tentar."
+		return m, nil
+	}
+	if key, ok := msg.(tea.KeyMsg); ok && key.Type == tea.KeyEsc && m.screen == ScreenCatalog && m.schemaCancel != nil {
+		m.invalidateOperation()
+		m.catalog.notice = "Leitura de parâmetros cancelada. e volta a tentar."
 		return m, nil
 	}
 	if m.library != nil {
@@ -214,14 +222,18 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch typed := msg.(type) {
 	case schemaLoadedMsg:
-		if !m.accepts(ScreenCatalog, typed.token) || m.catalog.input != inputNone {
+		if !m.accepts(ScreenCatalog, typed.token) || m.schemaCancel == nil {
+			return m, nil
+		}
+		m.cancelSchemaLoad()
+		m.catalog.notice = ""
+		if m.catalog.input != inputNone || m.actions != nil {
 			return m, nil
 		}
 		pipeline, ok := m.catalog.active()
 		if !ok || pipeline.ID != typed.id || pipeline.Project != typed.project || m.catalog.branchFor(pipeline) != typed.branch {
 			return m, nil
 		}
-		m.catalog.notice = ""
 		if typed.err != nil {
 			m.catalog.warning = "Não foi possível ler parâmetros: " + typed.err.Error()
 			return m, nil
@@ -268,6 +280,16 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			currentProject = strings.TrimSpace(m.context.project.Value())
 		}
 		if contextOperationTarget(typed.organization, typed.project) != contextOperationTarget(strings.TrimSpace(m.context.organization.Value()), currentProject) {
+			return m, nil
+		}
+		if m.project != "" && domainrunner.SameOrganization(m.organization, typed.organization) && domainrunner.SameContext(m.project, typed.project) {
+			if m.contextClient != nil {
+				m.service = domainrunner.NewService(m.contextClient, typed.project)
+			}
+			m.organization, m.project = typed.organization, typed.project
+			m.context.loading = false
+			m.screen = ScreenCatalog
+			m.catalog.notice = "Contexto mantido. Selecção, branches e parâmetros preservados."
 			return m, nil
 		}
 		ctx, token := m.startContextLoad(contextOperationTarget(typed.organization, typed.project))
@@ -452,6 +474,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if key, ok := msg.(tea.KeyMsg); ok && m.catalog.input == inputNone {
 			if key.String() == "B" {
 				if m.demo {
+					m.invalidateOperation()
 					browser := NewBranchDemo()
 					browser.returnToCatalog = true
 					browser.width, browser.height = m.width, m.height
@@ -462,6 +485,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.catalog.notice = "Escolhe um projecto com c antes de abrir Branches."
 					return m, nil
 				}
+				m.invalidateOperation()
 				browser := NewBranchModel(m.contextClient, m.project)
 				browser.returnToCatalog = true
 				browser.width, browser.height = m.width, m.height
@@ -469,6 +493,8 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, browser.Init()
 			}
 			if key.String() == "a" || key.String() == "?" {
+				m.invalidateOperation()
+				m.catalog.notice = ""
 				index := 0
 				m.actions = &index
 				return m, nil
@@ -493,6 +519,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.invalidateOperation()
 				m.context.err = ""
+				m.context.notice = "Outro contexto limpa a selecção, branches e parâmetros. O mesmo conserva a preparação."
 				m.context.setFocus(contextProjectFocus)
 				m.screen = ScreenContext
 				return m, nil
@@ -501,13 +528,23 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "e" && m.catalog.input == inputNone {
 			if pipeline, ok := m.catalog.active(); ok {
 				token := m.startOperation("schema")
+				ctx, cancel := context.WithCancel(context.Background())
+				m.schemaCancel = cancel
 				m.catalog.warning = ""
-				m.catalog.notice = "A ler parâmetros do YAML..."
-				return m, m.loadSchema(pipeline, m.catalog.branchFor(pipeline), token)
+				m.catalog.notice = "A ler parâmetros do YAML... Esc cancela."
+				return m, m.loadSchema(ctx, pipeline, m.catalog.branchFor(pipeline), token)
 			}
 		}
+		before, hadPipeline := m.catalog.active()
 		updated, cmd := m.catalog.Update(msg)
 		m.catalog = updated.(CatalogModel)
+		if m.schemaCancel != nil {
+			after, hasPipeline := m.catalog.active()
+			if m.catalog.input != inputNone || m.catalog.showDetails || hadPipeline != hasPipeline || before.ID != after.ID || before.Project != after.Project {
+				m.invalidateOperation()
+				m.catalog.notice = ""
+			}
+		}
 		return m, cmd
 	case ScreenReview:
 		if key, ok := msg.(tea.KeyMsg); ok && key.Type == tea.KeyEnter && len(m.review.reviews) > 0 {
@@ -663,6 +700,7 @@ func demoPipelines() []azdo.Pipeline {
 }
 
 func (m *AppModel) startOperation(target string) operationToken {
+	m.cancelSchemaLoad()
 	m.generation++
 	m.active = operationToken{generation: m.generation, target: target}
 	return m.active
@@ -686,8 +724,17 @@ func (m *AppModel) cancelContextLoad() {
 
 func (m *AppModel) invalidateOperation() {
 	m.cancelPreview()
+	m.cancelSchemaLoad()
 	m.generation++
 	m.active = operationToken{generation: m.generation}
+}
+
+func (m *AppModel) cancelSchemaLoad() {
+	if m.schemaCancel != nil {
+		m.schemaCancel()
+		m.schemaCancel = nil
+		m.catalog.notice = ""
+	}
 }
 
 func (m *AppModel) cancelPreview() {

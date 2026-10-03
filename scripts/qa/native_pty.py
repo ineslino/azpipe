@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Native Unix PTY checks; synthetic adapter refuses remote mutations."""
-import codecs, fcntl, json, os, pathlib, pty, re, select, signal, struct, sys, termios, time, unicodedata
+import codecs, fcntl, json, os, pathlib, pty, re, select, signal, struct, sys, tempfile, termios, time, unicodedata
 
 binary = str(pathlib.Path(sys.argv[1]).resolve())
 captures = pathlib.Path(os.environ.get("AZPIPE_QA_CAPTURE_DIR", "dist/qa-captures"))
@@ -17,11 +17,12 @@ class Terminal:
         self.x = self.y = 0
         self.pending = ""
         self.raw = bytearray()
+        self.data = pathlib.Path(tempfile.mkdtemp(prefix="isolated-data-"+name+"-", dir=captures.resolve()))
         (captures / "isolated-home").mkdir(exist_ok=True)
         self.decoder = codecs.getincrementaldecoder("utf-8")("replace")
         self.pid, self.fd = pty.fork()
         if self.pid == 0:
-            env = dict(os.environ, HOME=str(captures.resolve() / "isolated-home"), AZPIPE_DATA_DIR=str(captures.resolve() / "isolated-data"), TERM="xterm-256color", COLORTERM="truecolor", AZDO_PAT="", AZPIPE_CONTRACTS="", AZPIPE_AZDO_AS=str(pathlib.Path(__file__).with_name("fixture-adapter.py").resolve()), AZPIPE_AUTH_PROFILE="fixture", AZPIPE_EXPECTED_IDENTITY="fixture@example.test", AZPIPE_FIXTURE_MODE=mode)
+            env = dict(os.environ, HOME=str(captures.resolve() / "isolated-home"), AZPIPE_DATA_DIR=str(self.data), TERM="xterm-256color", COLORTERM="truecolor", AZDO_PAT="", AZPIPE_CONTRACTS="", AZPIPE_AZDO_AS=str(pathlib.Path(__file__).with_name("fixture-adapter.py").resolve()), AZPIPE_AUTH_PROFILE="fixture", AZPIPE_EXPECTED_IDENTITY="fixture@example.test", AZPIPE_FIXTURE_MODE=mode)
             env.pop("NO_COLOR", None)
             env["COLORFGBG"] = "0;15" if os.environ.get("AZPIPE_QA_LIGHT") else "15;0"
             if plain: env["NO_COLOR"] = "1"
@@ -238,6 +239,59 @@ def long_context(t):
     t.capture("review-target", ("Projecto: project-00", "bloqueada"))
     t.finish(":q", True)
 
+def fixture_catalog(t):
+    t.send("\r", .8)
+    t.send("\r", .8)
+    t.capture("catalog", ("fixture pipeline", "Projecto: project-00"))
+
+def context_retention(t):
+    fixture_catalog(t)
+    t.send(" ")
+    t.send("e", .8)
+    t.send("\x17\x13")  # Ctrl+W edits a default; Ctrl+S must send that visible value.
+    t.send("e", .8)
+    t.capture("edited-default", ("valor personalizado", "Valor: alpha"), ("beta",))
+    t.send("\x1b", .35)
+    t.send("b\x15release/prepared\r")
+    t.send("/fixture\x1b", .35)
+    t.send("c")
+    t.capture("scope-consequence", ("Outro contexto limpa",))
+    t.send("\r", .6)
+    t.capture("retained", ("[x]", "release/prepared", "Procurar: fixture", "Contexto mantido"))
+    t.send("e", .8)
+    t.capture("retained-parameter", ("valor personalizado", "Valor: alpha"), ("beta",))
+    t.send("\x1b", .35)
+    t.send("c\x1b[B\r", .8)
+    t.capture("new-context", ("Projecto: project-01", "Branch: main", "[ ]"), ("[x]", "release/prepared", "Contexto mantido"))
+    t.finish(":q", True)
+
+def schema_cancellation(t):
+    fixture_catalog(t)
+    t.send("e", .25)
+    t.send("\x1b", .35)
+    t.capture("cancelled", ("Leitura de parâmetros cancelada",), ("CONFIGURAR PARÂMETROS",))
+    t.read(2)
+    t.capture("late-discarded", ("Leitura de parâmetros cancelada",), ("CONFIGURAR PARÂMETROS",))
+    t.send("e", 2.8)
+    t.capture("reopened", ("Etiqueta", "Valor: alpha beta"))
+    t.send("\x1b", .35)
+    t.finish(":q", True)
+
+def profile_recovery(t):
+    fixture_catalog(t)
+    directory = t.data / "profiles"
+    directory.mkdir(parents=True, mode=0o700)
+    for name, pipeline in (("a-removed", 9999), ("b-valid", 202)):
+        profile = {"version": 1, "name": name, "organization": "fixture-org", "project": "project-00", "selections": [{"id": pipeline, "project": "project-00", "mode": "RUN", "branch": "main"}]}
+        fd = os.open(directory / (name+".json"), os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as output: json.dump(profile, output)
+    t.send(" ")
+    t.send("l\r")
+    t.capture("invalid-profile", ("a-removed", "9999"))
+    t.send("\x1b[B\r")
+    t.capture("valid-profile", ("Perfil carregado", "[x]"), ("a-removed", "9999"))
+    t.finish(":q", True)
+
 for width, height, plain in ((60, 24, False), (80, 24, False), (120, 40, True)):
     suffix = str(width) + ("-plain" if plain else "")
     scenario("context-"+suffix, ["--org", "fixture-org", "--project", "project-00"], context_flow, width=width, height=height, plain=plain)
@@ -247,4 +301,7 @@ scenario("cancel-projects", ["--org", "fixture-org"], cancellation, mode="slow-p
 scenario("auth-recovery", ["--org", "fixture-org"], recovery, mode="identity-error")
 scenario("long-context-60", ["--org", "organization"*12, "--project", "project-00"], long_context, width=60, height=24)
 scenario("long-options-60", ["--org", "fixture-org", "--project", "project-00"], long_options, mode="long-options", width=60, height=24)
+scenario("context-retain-80", ["--org", "fixture-org", "--project", "project-00"], context_retention, mode="continuity")
+scenario("cancel-schema-80", ["--org", "fixture-org", "--project", "project-00"], schema_cancellation, mode="slow-schema")
+scenario("profile-recovery-80", ["--org", "fixture-org", "--project", "project-00"], profile_recovery)
 print(json.dumps(results))

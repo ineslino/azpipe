@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--org`, `--project` global flags; `AZDO_PAT`/`AZDO_ORG` env var support
 
 ### Changed
+- Parameter edits now follow changes in the visible value, including Ctrl+W/Ctrl+H; schema reads cancel with Esc or a superseding action and discard late forms.
+- Reopening the same context retains preparation; reauthentication uses the current client. Switching context explains the reset, and an invalid profile no longer blocks another valid choice.
+- Search accepts typed/pasted command bursts; review states use Portuguese labels, and batch/persistence diagnostics remain fully inspectable with the existing detail controls.
 - Preview now reports per-pipeline progress, supports cancellation and enforces the shared 500-pipeline limit. Execution remains blocked until every preview succeeds.
 - Parameter errors focus the invalid field; F2 inspects complete choices without altering defaults. Search Esc retains the filter; saved batches show pipeline names, saved states and last-updated time.
 - Settings, profiles, journals and request bodies use private Unix permissions or Windows DACLs. Replacement writes preserve formats; atomic rename is guaranteed only on Unix.

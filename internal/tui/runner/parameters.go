@@ -186,12 +186,13 @@ func (e *parameterEditor) update(msg tea.Msg) tea.Cmd {
 				}
 				return nil
 			}
-			if key.Type == tea.KeyRunes || key.Type == tea.KeyBackspace || key.Type == tea.KeyDelete || key.Type == tea.KeyCtrlK || key.Type == tea.KeyCtrlU {
-				e.useDefault[i] = false
-			}
 		}
 		var cmd tea.Cmd
+		before := e.rows[i].value.Value()
 		e.rows[i].value, cmd = e.rows[i].value.Update(msg)
+		if e.rows[i].value.Value() != before {
+			e.useDefault[i] = false
+		}
 		return cmd
 	}
 	if key, ok := msg.(tea.KeyMsg); ok {

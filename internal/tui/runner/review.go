@@ -176,13 +176,13 @@ func (m reviewModel) view() string {
 		pipelines[i] = review.Selection.Pipeline
 	}
 	includeProject := hasMultiplePipelineProjects(pipelines)
-	columns := []int{2, 8, 4, 5, max(1, width-31)}
+	columns := []int{2, 9, 4, 5, max(1, width-32)}
 	headers := []string{"", "ESTADO", "MODO", "ID", "PIPELINE"}
 	if includeProject && width >= 70 {
-		columns = []int{2, 8, 4, 5, 15, max(1, width-49)}
+		columns = []int{2, 9, 4, 5, 15, max(1, width-50)}
 		headers = []string{"", "ESTADO", "MODO", "ID", "PROJECTO", "PIPELINE"}
 	} else if includeProject {
-		columns = []int{2, 8, 4, 5, 12, max(1, width-46)}
+		columns = []int{2, 9, 4, 5, 12, max(1, width-47)}
 		headers = []string{"", "ESTADO", "MODO", "ID", "PROJECTO", "PIPELINE"}
 	}
 	lines := []string{catalogTitleStyle.Render(fmt.Sprintf("Revisão · %s · %s · %s", quantity(ready, "pronta", "prontas"), quantity(blocked, "bloqueada", "bloqueadas"), quantity(len(m.reviews)-ready-blocked, "pendente", "pendentes"))), catalogHeaderStyle.Width(width).Render(tableCells(columns, headers...))}
@@ -197,6 +197,14 @@ func (m reviewModel) view() string {
 	for i := start; i < end; i++ {
 		r := m.reviews[i]
 		state := string(r.State)
+		switch r.State {
+		case domainrunner.ReviewPending:
+			state = "Pendente"
+		case domainrunner.ReviewReady:
+			state = "Pronta"
+		case domainrunner.ReviewError:
+			state = "Bloqueada"
+		}
 		if m.demo {
 			state = "DEMO"
 		}

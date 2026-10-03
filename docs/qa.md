@@ -20,6 +20,13 @@ It isolates local configuration, stores text/ANSI captures, checks 60×24, 80×2
 branch review, auth errors and cancellation. A light-background run sets
 `AZPIPE_QA_LIGHT=1`. No real Azure runs or deletes are made.
 
+Continuity scenarios also exercise editing a YAML default with Ctrl+W and reopening
+the form, retaining selection/filter/branch/parameters in the same project, resetting
+them after an explicit project change, recovering from an invalid saved profile and
+cancelling a slow schema read before reopening it. Each scenario uses its own local
+data directory. Model regressions additionally verify that reauthentication replaces
+the service client and that a newer request survives an older cancelled response.
+
 Windows tests use ConPTY through the existing `x/sys/windows` dependency. Set
 `AZPIPE_TEST_BINARY` to the native `.exe`, then run `go test ./scripts/qa -v`.
 The six CI jobs execute binaries natively, check private files, package/extract the

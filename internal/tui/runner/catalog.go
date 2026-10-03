@@ -156,6 +156,13 @@ func (m CatalogModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.input != inputNone {
 			return m.updateInput(msg)
 		}
+		if typed.Type == tea.KeyRunes && !typed.Alt && len(typed.Runes) > 1 && typed.Runes[0] == '/' {
+			updated, focus := m.updateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+			m = updated.(CatalogModel)
+			typed.Runes = typed.Runes[1:]
+			updated, input := m.updateInput(typed)
+			return updated, tea.Batch(focus, input)
+		}
 		return m.updateKey(typed)
 	}
 	return m, nil

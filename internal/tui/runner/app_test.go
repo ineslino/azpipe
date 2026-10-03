@@ -23,7 +23,7 @@ func TestAppWorkflow_ReviewsSelectionAndQueuesOnlyExactConfirmation(t *testing.T
 	if model.Screen() != ScreenReview {
 		t.Fatalf("screen after preview = %v, want review", model.Screen())
 	}
-	if !strings.Contains(model.View(), "READY") {
+	if !strings.Contains(model.View(), "Pronta") {
 		t.Fatalf("ready review not rendered:\n%s", model.View())
 	}
 
@@ -58,8 +58,8 @@ func TestAppWorkflow_ReviewStartsPendingBeforePreviewCompletes(t *testing.T) {
 	model, cmd := pressApp(t, model, "enter")
 	model, _ = runAppCmd(t, model, cmd)
 
-	if model.Screen() != ScreenReview || !strings.Contains(model.View(), "CHECK") {
-		t.Fatalf("review before preview completion must show CHECK:\n%s", model.View())
+	if model.Screen() != ScreenReview || !strings.Contains(model.View(), "Pendente") {
+		t.Fatalf("review before preview completion must show Pendente:\n%s", model.View())
 	}
 }
 
@@ -121,7 +121,7 @@ func TestAppWorkflow_RejectsStalePreviewAndWrongTarget(t *testing.T) {
 
 	updated, _ := model.Update(oldPreviewCmd())
 	model = updated.(AppModel)
-	if !strings.Contains(model.View(), "CHECK") {
+	if !strings.Contains(model.View(), "Pendente") {
 		t.Fatalf("stale preview changed active review:\n%s", model.View())
 	}
 
@@ -130,20 +130,20 @@ func TestAppWorkflow_RejectsStalePreviewAndWrongTarget(t *testing.T) {
 	wrongTarget.token.target = "forged-preview-target"
 	updated, _ = model.Update(wrongTarget)
 	model = updated.(AppModel)
-	if !strings.Contains(model.View(), "CHECK") {
+	if !strings.Contains(model.View(), "Pendente") {
 		t.Fatalf("wrong preview target changed active review:\n%s", model.View())
 	}
 
 	model.review.reviews[0].Selection.Branch = "other"
 	updated, _ = model.Update(currentMsg)
 	model = updated.(AppModel)
-	if !strings.Contains(model.View(), "CHECK") {
+	if !strings.Contains(model.View(), "Pendente") {
 		t.Fatalf("preview changed a review whose selection target was edited:\n%s", model.View())
 	}
 	model.review.reviews[0].Selection.Branch = "main"
 	updated, _ = model.Update(currentMsg)
 	model = updated.(AppModel)
-	if !strings.Contains(model.View(), "READY") {
+	if !strings.Contains(model.View(), "Pronta") {
 		t.Fatalf("active preview result not applied:\n%s", model.View())
 	}
 }
@@ -192,8 +192,8 @@ func TestAppWorkflow_PreviewErrorHidesConfirmationAndQuitIsFailClosed(t *testing
 	model, _ = runAppCmd(t, model, cmd)
 
 	view := model.View()
-	if !strings.Contains(view, "ERROR") || strings.Contains(view, "EXECUTAR") {
-		t.Fatalf("failed review must show ERROR without confirmation:\n%s", view)
+	if !strings.Contains(view, "Bloqueada") || strings.Contains(view, "EXECUTAR") {
+		t.Fatalf("failed review must show Bloqueada without confirmation:\n%s", view)
 	}
 	model, _ = pressApp(t, model, ":")
 	model = typeApp(t, model, "q")

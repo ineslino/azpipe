@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Full focused-value detail in F2 parameter choices, with PgUp/PgDn inspection before selection and a regression for long identical prefixes.
 - `--version` with commit and working-tree metadata; six native CI targets, PTY/ConPTY acceptance checks, vulnerability scans and verified snapshot archives.
 - Confined live Azure QA fixtures and a preflight helper for a private disposable project; real integration and assistive technology remain separate evidence gates.
 - Branch browser (`azpipe branches`, catalog `B`) with creator/name filters, repository selection, offline demo and guarded multi-delete. CLI `branches list` and preview-first `branches delete` share default-branch, policy, lock, active-PR and SHA checks.

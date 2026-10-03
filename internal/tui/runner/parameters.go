@@ -19,6 +19,7 @@ type parameterEditor struct {
 	warningScroll int
 	optionsOpen   bool
 	optionCursor  int
+	optionScroll  int
 	schema        *azdo.ParameterSchema
 	useDefault    []bool
 }
@@ -104,8 +105,14 @@ func (e *parameterEditor) update(msg tea.Msg) tea.Cmd {
 				e.optionsOpen = false
 			case "up":
 				e.optionCursor = max(0, e.optionCursor-1)
+				e.optionScroll = 0
 			case "down":
 				e.optionCursor = min(len(options)-1, e.optionCursor+1)
+				e.optionScroll = 0
+			case "pgup":
+				e.optionScroll = max(0, e.optionScroll-1)
+			case "pgdown":
+				e.optionScroll++
 			case "enter":
 				e.rows[e.focus/2].value.SetValue(options[e.optionCursor])
 				e.useDefault[e.focus/2] = false
@@ -125,6 +132,7 @@ func (e *parameterEditor) update(msg tea.Msg) tea.Cmd {
 			options := e.options(e.focus / 2)
 			if len(options) > 0 {
 				e.optionsOpen, e.optionCursor = true, 0
+				e.optionScroll = 0
 				for i, value := range options {
 					if value == e.rows[e.focus/2].value.Value() {
 						e.optionCursor = i
@@ -297,8 +305,8 @@ func (e parameterEditor) view(width, height int, name string) string {
 func (e parameterEditor) schemaView(width, height int, name string) string {
 	if e.optionsOpen {
 		options := e.options(e.focus / 2)
-		lines := []string{catalogTitleStyle.Render("Opções · " + e.schema.Parameters[e.focus/2].DisplayName), "", "Enter escolhe; Esc conserva o valor actual.", ""}
-		count := max(1, height-8)
+		lines := []string{catalogTitleStyle.Render(truncateWidth("Opções · "+e.schema.Parameters[e.focus/2].DisplayName, width)), "", "Enter escolhe; Esc conserva o valor actual.", ""}
+		count := max(1, height-13)
 		start := max(0, e.optionCursor-count+1)
 		for i := start; i < min(len(options), start+count); i++ {
 			style, marker := catalogTextStyle, "  "
@@ -307,7 +315,8 @@ func (e parameterEditor) schemaView(width, height int, name string) string {
 			}
 			lines = append(lines, style.Render(truncateWidth(marker+options[i], width)))
 		}
-		return strings.Join(append(lines, "", shortcutBar(width, "↑/↓ escolher", "enter aplicar opção", "esc voltar")), "\n")
+		lines = append(lines, "", catalogHeaderStyle.Render("Valor completo da opção focada:"), catalogTextStyle.Render(textPage(options[e.optionCursor], width, e.optionScroll, 3)))
+		return strings.Join(append(lines, "", shortcutBar(width, "↑/↓ escolher", "PgUp/PgDn detalhe", "enter aplicar opção", "esc voltar")), "\n")
 	}
 	position := "Sem campos editáveis."
 	if len(e.rows) > 0 {
@@ -361,6 +370,6 @@ func (e parameterEditor) schemaView(width, height int, name string) string {
 	if e.warning != "" {
 		lines = append(lines, catalogWarningStyle.Render(textPage(e.warning, width, e.warningScroll, 2)), "PgUp/PgDn: percorrer erro completo")
 	}
-	lines = append(lines, "", shortcutBar(width, "tab próximo", "←/→ escolher opção", "ctrl+r repor predefinido", "ctrl+s aplicar", "esc descartar"))
+	lines = append(lines, "", shortcutBar(width, "tab próximo", "←/→ escolher opção", "f2 opções e detalhe", "ctrl+r repor predefinido", "ctrl+s aplicar", "esc descartar"))
 	return strings.Join(lines, "\n")
 }

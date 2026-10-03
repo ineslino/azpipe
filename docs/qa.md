@@ -16,7 +16,7 @@ AZPIPE_QA_CAPTURE_DIR=/tmp/azpipe-qa-captures python3 scripts/qa/native_pty.py /
 
 `native_pty.py` uses a real Unix PTY and a synthetic, read-only credential adapter.
 It isolates local configuration, stores text/ANSI captures, checks 60×24, 80×24 and
-120×40, `NO_COLOR`, resize, filtering, fields/options, history, review, monitoring,
+120×40, `NO_COLOR`, resize, filtering, fields/options (including long equal prefixes), history, review, monitoring,
 branch review, auth errors and cancellation. A light-background run sets
 `AZPIPE_QA_LIGHT=1`. No real Azure runs or deletes are made.
 

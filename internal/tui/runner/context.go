@@ -445,6 +445,8 @@ func (m contextModel) frame(panels ...string) string {
 		}
 		if m.projectSearching {
 			help = shortcutBar(inner, "enter terminar pesquisa", "esc voltar à lista", ":q sair")
+		} else if len(m.visibleProjectIndexes()) == 0 {
+			help = shortcutBar(inner, "c limpar filtro", "/ alterar pesquisa", "esc mudar organização", ":q sair")
 		} else if m.err != "" {
 			help = shortcutBar(inner, primary) + "\n" + shortcutBar(inner, "esc mudar organização", ":q sair")
 		}

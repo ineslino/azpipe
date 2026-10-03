@@ -338,6 +338,12 @@ func (e parameterEditor) schemaView(width, height int, name string) string {
 			status = "valor personalizado"
 		}
 		kind := p.Type
+		switch kind {
+		case "number":
+			kind = "número"
+		case "string":
+			kind = "texto"
+		}
 		if len(e.options(i)) > 0 {
 			kind = "escolha"
 		}

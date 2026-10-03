@@ -22,6 +22,8 @@ The demo uses fictional data, without credentials, Azure DevOps calls or profile
 
 The interface adapts its colours to light and dark backgrounds, highlights the active row, and distinguishes RUN, PLAN and execution states. Details show the repository, folder and tags; shortcuts and selection markers remain readable with `NO_COLOR`.
 
+Review uses the available height to show its detail. If a profile fails to load, shortcuts for choosing another profile and retrying remain visible.
+
 ## Capabilities
 
 - One list with name, type, folder, repository, ID and tag filters.

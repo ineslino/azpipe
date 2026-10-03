@@ -22,6 +22,8 @@ A demo usa dados fictícios, sem credenciais, chamadas ao Azure DevOps ou escrit
 
 A interface adapta as cores a fundos claros e escuros, destaca a linha activa e separa RUN, PLAN e estados de execução. O detalhe mostra repositório, pasta e tags; os atalhos e marcadores continuam legíveis com `NO_COLOR`.
 
+A revisão aproveita a altura disponível para mostrar o detalhe. Se um perfil falhar, os atalhos para escolher outro e voltar a tentar continuam visíveis.
+
 ## O que faz
 
 - Lista única com filtros por nome, tipo, pasta, repositório, ID e tags.

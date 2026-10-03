@@ -108,6 +108,11 @@ func TestContinuityInvalidProfileDoesNotBlockAValidProfile(t *testing.T) {
 	if m.library == nil || m.library.err == "" || !reflect.DeepEqual(before, m.catalog.Selected()) {
 		t.Fatal("invalid profile did not retain the current preparation with an error")
 	}
+	for _, label := range []string{"Escolhe outro perfil", "↑/↓", "enter carregar"} {
+		if !strings.Contains(ansi.Strip(m.View()), label) {
+			t.Fatalf("invalid profile hid its recovery action %q", label)
+		}
+	}
 	m, _ = pressApp(t, m, "down")
 	m, _ = pressApp(t, m, "enter")
 	if m.library != nil || len(m.catalog.Selected()) != 1 || m.catalog.Selected()[0].ID() != 202 || m.catalog.Selected()[0].Branch != "release/valid" {

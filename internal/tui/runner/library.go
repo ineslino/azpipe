@@ -220,6 +220,9 @@ func (l libraryModel) view(width, height int) string {
 			count = len(l.journals)
 		}
 		capacity := max(1, height-12)
+		if l.kind == "profiles" && l.err != "" && count > 0 {
+			capacity = max(1, capacity-1)
+		}
 		start := max(0, l.cursor-capacity+1)
 		for i := start; i < min(count, start+capacity); i++ {
 			line := ""
@@ -282,6 +285,13 @@ func (l libraryModel) view(width, height int) string {
 	}
 	if l.err != "" {
 		lines = append(lines, catalogWarningStyle.Render(textPage(l.err, width, l.errorScroll, 3)), "PgUp/PgDn: percorrer erro completo")
+		if l.kind == "profiles" && len(l.profiles) > 0 {
+			hint := "Enter volta a tentar; Esc volta ao catálogo."
+			if len(l.profiles) > 1 {
+				hint = "Escolhe outro perfil; Enter volta a tentar."
+			}
+			lines = append(lines, catalogDetailStyle.Render(hint))
+		}
 	}
 	action := "enter carregar selecção"
 	if l.kind == "save" {
@@ -293,7 +303,7 @@ func (l libraryModel) view(width, height int) string {
 	items := []string{"esc voltar"}
 	if l.kind == "save" {
 		items = append([]string{action}, items...)
-	} else if l.err == "" && ((l.kind == "history" && len(l.journals) > 0) || (l.kind == "profiles" && len(l.profiles) > 0)) {
+	} else if (l.kind == "history" && len(l.journals) > 0) || (l.kind == "profiles" && len(l.profiles) > 0) {
 		items = append([]string{"↑/↓ escolher", action}, items...)
 		if l.kind == "history" {
 			items = append(items, "d detalhe")

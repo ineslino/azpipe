@@ -253,6 +253,10 @@ value untouched; Enter chooses an option. Invalid input focuses its field and Pg
 complete error. Catalog search follows the project selector: Esc retains the filter,
 Ctrl+U clears it while editing, and selected hidden rows stay selected.
 
+Simple type labels in the Portuguese form use `texto` and `número`; the underlying
+YAML types remain `string` and `number`. Catalog search uses the shared adaptive
+text styles for its placeholder and entered value.
+
 The underlying contract is documented in Microsoft's
 [runtime parameters](https://learn.microsoft.com/en-us/azure/devops/pipelines/process/runtime-parameters?view=azure-devops)
 and [Git Items API](https://learn.microsoft.com/en-us/rest/api/azure/devops/git/items/get?view=azure-devops-rest-7.1).
@@ -265,6 +269,10 @@ profile names are never overwritten. Press `l` to load a profile for the current
 organization/project. Loading replaces the selection, but does not reuse a preview
 or trigger any run. Removed pipelines and unavailable PLAN contracts block loading;
 changed parameters are checked during the new preview.
+
+A failed profile load retains the current preparation. The error keeps Up/Down
+and Enter visible so another profile can be chosen and loaded; Esc returns to the
+catalog. With only one profile, Enter retries that profile.
 
 Profiles and batch journals use separate `profiles/` and `runs/` directories under
 `os.UserConfigDir()/azpipe` (on macOS, `~/Library/Application Support/azpipe`).
@@ -302,6 +310,10 @@ preparation. The expanded YAML hash is checked again before queue. This does not
 freeze external services, variable groups, mutable images or external template
 repositories; these still require owner-controlled immutable references.
 No pipeline can be queued while any preview is pending or failed.
+
+Review detail uses the height left after the list, frame, confirmation and help.
+On smaller terminals, Left/Right scrolls the remaining detail. Resizing and opening
+the command bar preserve space for the controls.
 
 After every preview succeeds, type `EXECUTAR` exactly to queue the selection. Queue
 requests also use a maximum concurrency of four. If one queue request fails, already

@@ -228,6 +228,31 @@ func (m reviewModel) view() string {
 	if height >= 28 {
 		lines = append(lines, "")
 	}
+	footer := []string{""}
+	if m.demo {
+		footer = append(footer, catalogDetailStyle.Render("Demo offline: nenhuma pipeline será executada."), shortcutBar(width, "enter ver exemplo de acompanhamento (simulação)"))
+	} else if m.canExecute() {
+		footer = append(footer, runStyle.Render(fmt.Sprintf("Vai lançar %s. Escreve EXECUTAR para confirmar.", quantity(len(m.reviews), "pipeline", "pipelines"))), m.confirmation.View())
+	} else {
+		if m.cancelled {
+			footer = append(footer, catalogWarningStyle.Render("Preview cancelada. Esc volta à lista; :q sai."))
+		} else if blocked > 0 && !m.previewing {
+			footer = append(footer, catalogWarningStyle.Render("Escolhe uma pipeline com erro. Enter volta à lista para corrigir."))
+		} else {
+			footer = append(footer, catalogDetailStyle.Render(fmt.Sprintf("Previews: %d/%d concluídas · Esc ou :q cancela.", ready+blocked, len(m.reviews))))
+		}
+	}
+	if m.warning != "" {
+		footer = append(footer, catalogWarningStyle.Render(m.warning))
+	}
+	quit := ":q sair"
+	if m.previewing {
+		quit = ":q cancelar preview"
+	}
+	if m.confirmation.Focused() {
+		quit = "←/→ detalhe completo"
+	}
+	footer = append(footer, shortcutBar(width, "pgup/pgdown página", "esc voltar e editar", quit))
 	if len(m.reviews) > 0 {
 		r := m.reviews[m.offset]
 		request := r.Request
@@ -246,42 +271,20 @@ func (m reviewModel) view() string {
 			detail = "Bloqueio: " + r.Err.Error() + "\n" + detail
 		}
 		wrapped := strings.Split(ansi.Wrap(detail, width, ""), "\n")
-		scroll := min(m.horizontal, max(0, len(wrapped)-5))
 		lines = append(lines, catalogHeaderStyle.Width(width).Render(truncateWidth("── Detalhe · "+pipelineDisplayName(r.Selection.Pipeline, includeProject), width)))
 		if height >= 28 {
 			lines = append(lines, "")
 		}
-		for _, line := range wrapped[scroll:min(len(wrapped), scroll+5)] {
+		// Reserve section borders, the detail counter and the actual confirmation/help height.
+		capacity := max(1, height-2-lipgloss.Height(strings.Join(lines, "\n"))-lipgloss.Height(strings.Join(footer, "\n"))-1)
+		scroll := min(m.horizontal, max(0, len(wrapped)-capacity))
+		end := min(len(wrapped), scroll+capacity)
+		for _, line := range wrapped[scroll:end] {
 			lines = append(lines, catalogDetailStyle.Render(line))
 		}
-		lines = append(lines, catalogDetailStyle.Render(fmt.Sprintf("Detalhe %d–%d/%d · ←/→ deslocar", scroll+1, min(len(wrapped), scroll+5), len(wrapped))))
+		lines = append(lines, catalogDetailStyle.Render(fmt.Sprintf("Detalhe %d–%d/%d · ←/→ deslocar", scroll+1, end, len(wrapped))))
 	}
-	lines = append(lines, "")
-	if m.demo {
-		lines = append(lines, catalogDetailStyle.Render("Demo offline: nenhuma pipeline será executada."), shortcutBar(width, "enter ver exemplo de acompanhamento (simulação)"))
-	} else if m.canExecute() {
-		lines = append(lines, runStyle.Render(fmt.Sprintf("Vai lançar %s. Escreve EXECUTAR para confirmar.", quantity(len(m.reviews), "pipeline", "pipelines"))), m.confirmation.View())
-	} else {
-		if m.cancelled {
-			lines = append(lines, catalogWarningStyle.Render("Preview cancelada. Esc volta à lista; :q sai."))
-		} else if blocked > 0 && !m.previewing {
-			lines = append(lines, catalogWarningStyle.Render("Escolhe uma pipeline com erro. Enter volta à lista para corrigir."))
-		} else {
-			lines = append(lines, catalogDetailStyle.Render(fmt.Sprintf("Previews: %d/%d concluídas · Esc ou :q cancela.", ready+blocked, len(m.reviews))))
-		}
-	}
-	if m.warning != "" {
-		lines = append(lines, catalogWarningStyle.Render(m.warning))
-	}
-	quit := ":q sair"
-	if m.previewing {
-		quit = ":q cancelar preview"
-	}
-	if m.confirmation.Focused() {
-		quit = "←/→ detalhe completo"
-	}
-	lines = append(lines, shortcutBar(width, "pgup/pgdown página", "esc voltar e editar", quit))
-	return strings.Join(lines, "\n")
+	return strings.Join(append(lines, footer...), "\n")
 }
 
 func formatParameters(parameters map[string]string) string {

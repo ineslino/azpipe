@@ -204,9 +204,6 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Quit
 		}
-		if action == commandBack {
-			return m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-		}
 		return m, cmd
 	}
 	if key, ok := msg.(tea.KeyMsg); ok && m.input == "" && !m.confirmation.Focused() {
@@ -701,13 +698,14 @@ func (m BranchModel) View() string {
 		if m.command.active {
 			view += "\n" + m.command.view(frameWidth)
 		}
-		return view
+		return terminalView(view, m.height)
 	}
 	inner, widths, headers := branchTableLayout(frameWidth, m.stage)
 	prefix := wordmarkStyle.Render("AZPIPE") + "  " + catalogTitleStyle.Render("GESTÃO DE BRANCHES") + "\n" + truncateWidth(m.breadcrumb(), frameWidth) + "\n"
 	controlsTitle := "CONTEXTO"
 	var controls []string
 	var tableRows [][]string
+	var visible []branchEntry
 	var total int
 	var detail string
 	tableTitle := "RESULTADOS"
@@ -731,23 +729,8 @@ func (m BranchModel) View() string {
 		m.creator.Width = max(8, inner-ansi.StringWidth(m.creator.Prompt)-1)
 		controls = append(controls, "", catalogDetailStyle.Render("Origens · R/L/W: "+m.originFiltersLabel()), m.filter.View(), m.creator.View())
 		tableTitle = "BRANCHES"
-		visible := m.visibleEntries()
+		visible = m.visibleEntries()
 		total = len(visible)
-		for _, entry := range visible {
-			b := entry.branch()
-			mark := "[ ]"
-			if m.isSelected(entry) {
-				mark = "[x]"
-			}
-			if !entry.selectable() {
-				mark = "[-]"
-			}
-			values := []string{mark, entry.originLabel(), strings.TrimPrefix(b.Name, "refs/heads/"), branchCreator(b)}
-			if len(widths) == 2 {
-				values = []string{values[0], values[1] + " · " + values[2]}
-			}
-			tableRows = append(tableRows, values)
-		}
 		if m.cursor < total {
 			entry := visible[m.cursor]
 			b := entry.branch()
@@ -791,8 +774,8 @@ func (m BranchModel) View() string {
 	hidden := 0
 	if m.stage == "list" {
 		visibleSelected := 0
-		for _, b := range m.visible() {
-			if m.isSelected(remoteBranchEntry(b)) {
+		for _, entry := range visible {
+			if entry.selectable() && m.isSelected(entry) {
 				visibleSelected++
 			}
 		}
@@ -831,12 +814,31 @@ func (m BranchModel) View() string {
 	compact := m.height < 28 && m.stage != "review"
 	render := func(start, end int) string {
 		selectedRows := map[int]bool{}
+		var rows [][]string
 		if m.stage == "list" {
+			// Filtering is shared by the count, detail and page; only format page rows.
+			rows = make([][]string, 0, end-start)
 			for index := start; index < end; index++ {
-				selectedRows[index-start] = m.isSelected(m.visibleEntries()[index])
+				entry := visible[index]
+				b := entry.branch()
+				mark := "[ ]"
+				selectedRows[index-start] = m.isSelected(entry)
+				if selectedRows[index-start] {
+					mark = "[x]"
+				}
+				if !entry.selectable() {
+					mark = "[-]"
+				}
+				values := []string{mark, entry.originLabel(), strings.TrimPrefix(b.Name, "refs/heads/"), branchCreator(b)}
+				if len(widths) == 2 {
+					values = []string{values[0], values[1] + " · " + values[2]}
+				}
+				rows = append(rows, values)
 			}
+		} else {
+			rows = tableRows[start:end]
 		}
-		table := renderBranchTable(inner, widths, headers, tableRows[start:end], m.cursor-start, selectedRows)
+		table := renderBranchTable(inner, widths, headers, rows, m.cursor-start, selectedRows)
 		if compact && detail != "" {
 			table += "\n" + borderStyle.Render(strings.Repeat("─", inner)) + "\n" + catalogDetailStyle.Render(detail)
 		}
@@ -862,5 +864,5 @@ func (m BranchModel) View() string {
 	capacity := max(1, 1+m.height-lipgloss.Height(render(0, min(1, total))))
 	start := min(max(0, m.cursor-capacity+1), max(0, total-capacity))
 	end := min(total, start+capacity)
-	return render(start, end)
+	return terminalView(render(start, end), m.height)
 }

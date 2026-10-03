@@ -12,7 +12,6 @@ type commandAction int
 const (
 	commandHandled commandAction = iota
 	commandQuit
-	commandBack
 )
 
 type commandModel struct {
@@ -60,7 +59,7 @@ func (m *commandModel) update(key tea.KeyMsg) (commandAction, tea.Cmd) {
 	switch key.Type {
 	case tea.KeyEsc:
 		m.close()
-		return commandBack, nil
+		return commandHandled, nil
 	case tea.KeyEnter:
 		command := strings.TrimSpace(m.input.Value())
 		if command == "q" || command == "quit" {

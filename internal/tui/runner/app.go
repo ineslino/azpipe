@@ -168,8 +168,6 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cancelPreview()
 				m.cancelSchemaLoad()
 				return m, tea.Quit
-			case commandBack:
-				return m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 			default:
 				return m, cmd
 			}
@@ -338,7 +336,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.catalog.width = m.width
 		}
 		if m.height > 0 {
-			m.catalog.height = m.height
+			m.catalog.height = max(1, m.height-2)
 		}
 		m.organization, m.project = typed.organization, typed.project
 		m.screen = ScreenCatalog
@@ -466,6 +464,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.context, cmd = m.context.update(msg)
 		return m, cmd
 	case ScreenCatalog:
+		if _, ok := msg.(tea.WindowSizeMsg); ok {
+			// Keep the catalog's dimensions assigned above, excluding the app header.
+			return m, nil
+		}
 		if m.catalog.showDetails {
 			updated, cmd := m.catalog.Update(msg)
 			m.catalog = updated.(CatalogModel)
@@ -679,9 +681,9 @@ func (m AppModel) View() string {
 		}
 	}
 	if !m.command.active {
-		return view
+		return terminalView(view, m.height)
 	}
-	return view + "\n" + m.command.view(m.width)
+	return terminalView(view+"\n"+m.command.view(m.width), m.height)
 }
 
 func (m AppModel) contextHeader() string {

@@ -93,12 +93,12 @@ Usa `AZDO_PAT` injectado pelo teu mecanismo de credenciais e `AZDO_ORG` para o c
 | `/` / espaço | Filtrar / seleccionar; Esc conserva o filtro e Ctrl+U limpa durante a pesquisa |
 | `d` | Detalhe completo da pipeline; setas percorrem e Esc regressa |
 | `m` / `P` / `R` | Alternar modo / PLAN para selecção / RUN para selecção |
-| `e` / `b` | Parâmetros tipados / branch; F2 consulta opções sem alterar o valor |
+| `e` / `b` | Parâmetros tipados / branch; F2 consulta opções paginadas, posição e valor completo sem o alterar |
 | `s` / `l` / `h` | Guardar perfil / carregar perfil / histórico |
 | `c` | Mudar o projecto ou voltar a **Todos os projectos** |
 | `B` | Abrir a gestão de branches do projecto e repositório seleccionados |
 | Enter / Esc | Rever / regressar sem lançar; Esc recua um nível e nunca termina a TUI |
-| `:` / `:q` | Abrir comandos / sair explicitamente |
+| `:` / `:q` | Abrir comandos / sair explicitamente; Esc fecha apenas a barra de comandos |
 
 Exemplo CLI, apenas preview de um ficheiro de selecção preparado conforme o guia:
 

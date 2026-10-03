@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/ineslino/azpipe/internal/azdo"
 )
 
@@ -306,8 +307,10 @@ func (e parameterEditor) view(width, height int, name string) string {
 func (e parameterEditor) schemaView(width, height int, name string) string {
 	if e.optionsOpen {
 		options := e.options(e.focus / 2)
-		lines := []string{catalogTitleStyle.Render(truncateWidth("Opções · "+e.schema.Parameters[e.focus/2].DisplayName, width)), "", "Enter escolhe; Esc conserva o valor actual.", ""}
-		count := max(1, height-13)
+		lines := []string{catalogTitleStyle.Render(truncateWidth("Opções · "+e.schema.Parameters[e.focus/2].DisplayName, width)), catalogDetailStyle.Render(fmt.Sprintf("Opção %d de %d", e.optionCursor+1, len(options))), "Enter escolhe; Esc conserva o valor actual.", ""}
+		footer := []string{"", catalogHeaderStyle.Render("Valor completo da opção focada:"), catalogTextStyle.Render(textPage(options[e.optionCursor], width, e.optionScroll, 3)), "", shortcutBar(width, "↑/↓ escolher", "PgUp/PgDn detalhe", "enter aplicar opção", "esc voltar")}
+		// Reserve the actual wrapped detail and shortcuts before sizing the list.
+		count := max(1, height-lipgloss.Height(strings.Join(lines, "\n"))-lipgloss.Height(strings.Join(footer, "\n")))
 		start := max(0, e.optionCursor-count+1)
 		for i := start; i < min(len(options), start+count); i++ {
 			style, marker := catalogTextStyle, "  "
@@ -316,8 +319,7 @@ func (e parameterEditor) schemaView(width, height int, name string) string {
 			}
 			lines = append(lines, style.Render(truncateWidth(marker+options[i], width)))
 		}
-		lines = append(lines, "", catalogHeaderStyle.Render("Valor completo da opção focada:"), catalogTextStyle.Render(textPage(options[e.optionCursor], width, e.optionScroll, 3)))
-		return strings.Join(append(lines, "", shortcutBar(width, "↑/↓ escolher", "PgUp/PgDn detalhe", "enter aplicar opção", "esc voltar")), "\n")
+		return strings.Join(append(lines, footer...), "\n")
 	}
 	position := "Sem campos editáveis."
 	if len(e.rows) > 0 {

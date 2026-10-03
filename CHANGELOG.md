@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--org`, `--project` global flags; `AZDO_PAT`/`AZDO_ORG` env var support
 
 ### Changed
+- Escape closes only the command bar, preserving the underlying screen and pending read; a second Escape keeps the existing navigation or cancellation action.
+- Full-screen frames retain their height when command overlays close, preventing the terminal renderer from erasing an unchanged bottom border.
+- Parameter choices show their position and size the list from the rendered detail and shortcuts, retaining branding and controls with long values in compact terminals.
+- Branch rendering filters once per frame and formats only the visible page, preserving remote selections and hidden counts across local/worktree aliases.
 - Profile errors keep recovery actions visible, catalog search uses adaptive text styles, and simple parameter types use Portuguese labels without changing their schemas.
 - Review details use available terminal height while preserving confirmation and help; resizing and command bars retain the space reserved for the surrounding frame.
 - Parameter edits now follow changes in the visible value, including Ctrl+W/Ctrl+H; schema reads cancel with Esc or a superseding action and discard late forms.

@@ -35,6 +35,18 @@ Review checks cover one and thirty rows, pending/ready/blocked/demo states, resi
 and command bars at the three sizes. Tall PTY review captures require definition
 and default information to be visible together with confirmation/help controls.
 
+Command-bar regressions check that Esc preserves history, branch help/review,
+bottom frame borders and pending reads, while the next Esc returns or cancels normally. Choice regressions
+cover 9, 12 and 50 long values at all three sizes in dark/light/plain model renders;
+PTY flows inspect the first and last choices, retain defaults on Esc and resize
+without clipping the brand or shortcuts. Branch model checks cover 1,000 and 10,000
+rows, the last page, hidden selection and remote/local/worktree name aliases.
+Measure the branch render path independently of network requests with:
+
+```bash
+go test ./internal/tui/runner -run '^$' -bench '^BenchmarkBranchView$' -benchmem -count=3
+```
+
 Windows tests use ConPTY through the existing `x/sys/windows` dependency. Set
 `AZPIPE_TEST_BINARY` to the native `.exe`, then run `go test ./scripts/qa -v`.
 The six CI jobs execute binaries natively, check private files, package/extract the

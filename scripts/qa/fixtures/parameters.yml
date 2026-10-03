@@ -1,0 +1,48 @@
+trigger: none
+pr: none
+
+parameters:
+  - name: planOnly
+    displayName: Apenas plano
+    type: boolean
+    default: false
+  - name: environment
+    displayName: Ambiente
+    type: string
+    default: dev
+    values: [dev, test, staging, preprod, prod]
+  - name: tests
+    displayName: Executar testes
+    type: boolean
+    default: true
+  - name: replicas
+    displayName: Réplicas
+    type: number
+    default: 2
+  - name: metadata
+    displayName: Metadados (predefinido YAML)
+    type: object
+    default: {purpose: azpipe-qa}
+  - name: outcome
+    displayName: Resultado controlado
+    type: string
+    default: success
+    values: [success, failure, wait]
+
+pool:
+  vmImage: ubuntu-24.04
+
+jobs:
+  - job: fixture
+    timeoutInMinutes: 5
+    steps:
+      - checkout: none
+      - bash: |
+          echo 'AZPIPE QA: pipeline de parâmetros sem recursos externos'
+          case "$QA_OUTCOME" in
+            success) exit 0 ;;
+            failure) exit 1 ;;
+            wait) sleep 120 ;;
+          esac
+        env:
+          QA_OUTCOME: ${{ parameters.outcome }}

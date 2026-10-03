@@ -2,21 +2,121 @@ name: Tests
 on: [push, pull_request]
 permissions:
   contents: read
+
 jobs:
-  test:
+  native:
+    name: Native ${{ matrix.target }}
+    timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+        include:
+          - {runner: ubuntu-24.04, target: linux-amd64, arch: amd64, ext: '', race: true}
+          - {runner: ubuntu-24.04-arm, target: linux-arm64, arch: arm64, ext: '', race: true}
+          - {runner: macos-15-intel, target: darwin-amd64, arch: amd64, ext: '', race: true}
+          - {runner: macos-15, target: darwin-arm64, arch: arm64, ext: '', race: true}
+          - {runner: windows-2025, target: windows-amd64, arch: amd64, ext: '.exe', race: true}
+          - {runner: windows-11-arm, target: windows-arm64, arch: arm64, ext: '.exe', race: false}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      AZPIPE_TEST_BINARY: ${{ runner.temp }}/azpipe${{ matrix.ext }}
+      AZPIPE_QA_CAPTURE_DIR: ${{ runner.temp }}/azpipe-qa-captures
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
-      - run: go test -race ./...
-      - run: go vet ./...
-      - run: go build ./...
-      - run: go build ./...
+          go-version: '1.27.1'
+          architecture: ${{ matrix.arch }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Build native executable and verify metadata
+        run: |
+          go env GOOS GOARCH
+          go build -o "$AZPIPE_TEST_BINARY" .
+          "$AZPIPE_TEST_BINARY" --version
+          go version -m "$AZPIPE_TEST_BINARY"
+          revision=$(git rev-parse HEAD)
+          version=$("$AZPIPE_TEST_BINARY" --version)
+          case "$version" in
+            *"commit $revision; modified=false"*) ;;
+            *) exit 1 ;;
+          esac
+      - name: Native tests with race detector
+        if: matrix.race
+        run: go test -race ./... -count=1 -timeout=5m
+      - name: Native tests (race detector unsupported on Windows ARM64)
+        if: '!matrix.race'
+        run: go test ./... -count=1 -timeout=5m
+      - name: Static checks
+        run: |
+          go vet ./...
+          git diff --check
+      - name: QA scope guards (synthetic data)
+        run: python -m unittest discover -s scripts/qa -p 'test_*.py' -v
+      - name: Native Unix PTY flows
+        if: runner.os != 'Windows'
+        run: python scripts/qa/native_pty.py "$AZPIPE_TEST_BINARY"
+      - name: Native Unix PTY with light background
+        if: runner.os != 'Windows'
         env:
-          GOOS: windows
-          GOARCH: amd64
+          AZPIPE_QA_LIGHT: '1'
+          AZPIPE_QA_CAPTURE_DIR: ${{ runner.temp }}/azpipe-qa-captures/light
+        run: python scripts/qa/native_pty.py "$AZPIPE_TEST_BINARY" catalog-80 branches-80
+      - name: Archive, checksum and extracted executable
+        run: python scripts/qa/package.py "$AZPIPE_TEST_BINARY" '${{ matrix.target }}' '${{ runner.temp }}/azpipe-package'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-${{ matrix.target }}
+          path: |
+            ${{ runner.temp }}/azpipe-qa-captures/
+            ${{ runner.temp }}/azpipe-package/
+          retention-days: 14
+
+  security:
+    name: Dependencies and vulnerabilities
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+      - run: go mod verify
+      - run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+      - run: govulncheck ./...
+
+  packaging:
+    name: Release packaging (no publication)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: v2.18.2
+          args: check
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: v2.18.2
+          args: release --snapshot --clean --skip=publish,before
+      - name: Verify archive checksums
+        working-directory: dist
+        run: sha256sum -c checksums.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-snapshot
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/checksums.txt
+          retention-days: 14

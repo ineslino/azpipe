@@ -7,3 +7,10 @@ PLAN is an owner-reviewed contract, not a sandbox. Preview validates expanded YA
 Do not post credentials or exploitable details in public issues. Use a private reporting route only after verifying that the repository exposes one; no private reporting channel or response SLA is currently established in this checkout. Revoke exposed credentials through your provider.
 
 Local tests do not establish live corporate authentication, platform certification or support for older published versions.
+
+Private files use 0600 permissions on Unix and protected DACLs on Windows, allowing
+the current user, SYSTEM and administrators. Dedicated settings/profile/run directories
+are protected; arbitrary parent directories used by CLI journals are not changed.
+Temporary request bodies are protected before writing. Settings and journals use
+replacement writes: Unix rename is atomic, while Go makes no atomicity guarantee on
+Windows. These permissions do not encrypt plaintext parameters or legacy persisted PATs.

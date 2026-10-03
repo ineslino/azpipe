@@ -87,9 +87,9 @@ Use `AZDO_PAT` injected by your credential mechanism and `AZDO_ORG` for context,
 | `a` / `?` | Actions and help menu, with descriptions and reasons for unavailable options |
 | `A` | Select all visible pipelines |
 | Arrows / `j` / `k` | Navigate |
-| `/` / Space | Filter / select |
+| `/` / Space | Filter / select; Esc retains the filter and Ctrl+U clears it while searching |
 | `m` / `P` / `R` | Toggle mode / PLAN for selection / RUN for selection |
-| `e` / `b` | Typed parameters / branch |
+| `e` / `b` | Typed parameters / branch; F2 inspects choices without changing a value |
 | `s` / `l` / `h` | Save profile / load profile / history |
 | `c` | Change project or return to **All projects** |
 | `B` | Open branch management for the selected project and repository |
@@ -115,7 +115,7 @@ go vet ./...
 go build ./...
 ```
 
-HTTP tests use local servers. CI is configured for Linux/macOS and Windows compilation. This does not establish native Windows/WSL runtime or live corporate integration. See [validation and publication](docs/readiness.md) and [contributing](CONTRIBUTING.md).
+HTTP tests use local servers. CI has six native jobs: Linux, macOS and Windows on amd64/arm64, with PTY/ConPTY and archive checks. Preview reports each pipeline's progress and execution remains blocked until all previews finish. Selection accepts up to 500 pipelines. Live Azure, WSL and screen readers have separate [acceptance criteria](docs/qa.md). See [validation and publication](docs/readiness.md) and [contributing](CONTRIBUTING.md).
 
 ## Documentation
 

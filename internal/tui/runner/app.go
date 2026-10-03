@@ -547,6 +547,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, cmd
 	case ScreenReview:
+		if _, ok := msg.(tea.WindowSizeMsg); ok {
+			// App already assigned inner dimensions, excluding its header and frame.
+			return m, nil
+		}
 		if key, ok := msg.(tea.KeyMsg); ok && key.Type == tea.KeyEnter && len(m.review.reviews) > 0 {
 			r := m.review.reviews[m.review.offset]
 			if r.Err != nil {
@@ -640,7 +644,11 @@ func (m AppModel) View() string {
 	} else if m.actions != nil {
 		view = m.contextHeader() + m.actionsView()
 	} else if m.library != nil {
-		view = m.contextHeader() + section("PERFIS E LOTES", m.library.view(max(1, m.width-4), max(1, m.height-2)), m.width)
+		height := max(1, m.height-2)
+		if m.command.active {
+			height = max(1, height-1)
+		}
+		view = m.contextHeader() + section("PERFIS E LOTES", m.library.view(max(1, m.width-4), height), m.width)
 	} else {
 		switch m.screen {
 		case ScreenContext:
@@ -661,7 +669,11 @@ func (m AppModel) View() string {
 			}
 			view = header + catalog.View()
 		case ScreenReview:
-			view = m.contextHeader() + section("VALIDAÇÃO DO LOTE", m.review.view(), m.width)
+			review := m.review
+			if m.command.active {
+				review.height = max(1, review.height-1)
+			}
+			view = m.contextHeader() + section("VALIDAÇÃO DO LOTE", review.view(), m.width)
 		case ScreenExecution:
 			view = m.contextHeader() + section("MONITORIZAÇÃO DO LOTE", m.execution.view(), m.width)
 		}

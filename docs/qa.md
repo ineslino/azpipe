@@ -29,6 +29,12 @@ cancelling a slow schema read before reopening it. Each scenario uses its own lo
 data directory. Model regressions additionally verify that reauthentication replaces
 the service client and that a newer request survives an older cancelled response.
 
+Refinement regressions check visible recovery after an invalid profile, adaptive
+catalog search styles and Portuguese type labels without changing YAML types.
+Review checks cover one and thirty rows, pending/ready/blocked/demo states, resize
+and command bars at the three sizes. Tall PTY review captures require definition
+and default information to be visible together with confirmation/help controls.
+
 Windows tests use ConPTY through the existing `x/sys/windows` dependency. Set
 `AZPIPE_TEST_BINARY` to the native `.exe`, then run `go test ./scripts/qa -v`.
 The six CI jobs execute binaries natively, check private files, package/extract the

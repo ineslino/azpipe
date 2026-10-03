@@ -64,6 +64,7 @@ func NewCatalogModel(pipelines []azdo.Pipeline) CatalogModel {
 	search.Width = 40
 	search.Placeholder = "nome, tipo, tag ou repositório"
 	search.PromptStyle = keyStyle
+	search.TextStyle, search.PlaceholderStyle = catalogTextStyle, catalogDetailStyle
 	search.Cursor.Style = catalogActiveStyle
 	search.CharLimit = 256
 

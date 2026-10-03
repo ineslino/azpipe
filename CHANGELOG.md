@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--org`, `--project` global flags; `AZDO_PAT`/`AZDO_ORG` env var support
 
 ### Changed
+- Profile errors keep recovery actions visible, catalog search uses adaptive text styles, and simple parameter types use Portuguese labels without changing their schemas.
+- Review details use available terminal height while preserving confirmation and help; resizing and command bars retain the space reserved for the surrounding frame.
 - Parameter edits now follow changes in the visible value, including Ctrl+W/Ctrl+H; schema reads cancel with Esc or a superseding action and discard late forms.
 - Reopening the same context retains preparation; reauthentication uses the current client. Switching context explains the reset, and an invalid profile no longer blocks another valid choice.
 - Search accepts typed/pasted command bursts; review states use Portuguese labels, and batch/persistence diagnostics remain fully inspectable with the existing detail controls.

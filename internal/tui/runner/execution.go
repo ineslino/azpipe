@@ -240,10 +240,12 @@ func (m executionModel) view() string {
 		}
 	}
 	if m.err != nil {
-		lines = append(lines, catalogWarningStyle.Render(m.err.Error()))
+		diagnostic := strings.NewReplacer("\r", " ", "\n", " · ").Replace(m.err.Error())
+		lines = append(lines, catalogWarningStyle.Render(horizontalWindow("Erro do lote: "+diagnostic, m.horizontal, width)))
 	}
 	if m.persistErr != nil {
-		lines = append(lines, catalogWarningStyle.Render(truncateWidth("Estado não guardado: "+m.persistErr.Error(), m.width)))
+		diagnostic := strings.NewReplacer("\r", " ", "\n", " · ").Replace(m.persistErr.Error())
+		lines = append(lines, catalogWarningStyle.Render(horizontalWindow("Estado não guardado: "+diagnostic, m.horizontal, width)))
 	}
 	status := "Actualização automática a cada 5s"
 	if m.demo {

@@ -2,6 +2,8 @@
 import json, os, sys, time
 
 args = sys.argv[1:]
+mode = os.environ.get("AZPIPE_FIXTURE_MODE")
+schema_modes = ("long-options", "continuity", "slow-schema")
 if args[1:] == ["whoami"]:
     if os.environ.get("AZPIPE_FIXTURE_MODE") == "identity-error":
         sys.exit(1)
@@ -23,15 +25,21 @@ if (area, resource) == ("core", "projects"):
 elif (area, resource) == ("build", "definitions"):
     if os.environ.get("AZPIPE_FIXTURE_MODE") == "slow-pipelines":
         time.sleep(2)
-    if os.environ.get("AZPIPE_FIXTURE_MODE") == "long-options" and any(a.startswith("definitionId=") for a in args):
+    if mode in schema_modes and any(a.startswith("definitionId=") for a in args):
+        if mode == "slow-schema":
+            time.sleep(2)
         print(json.dumps({"revision": 7, "repository": {"id": "fixture-repo", "type": "TfsGit"}, "process": {"yamlFilename": "/fixture.yml"}}))
     else:
         print(json.dumps({"value": [{"id": 202, "name": "fixture pipeline", "path": "\\fixture", "repository": {"name": "fixture-repo"}}]}))
-elif os.environ.get("AZPIPE_FIXTURE_MODE") == "long-options" and (area, resource) == ("git", "refs"):
-    print(json.dumps({"value": [{"name": "refs/heads/main", "objectId": "a"*40}]}))
-elif os.environ.get("AZPIPE_FIXTURE_MODE") == "long-options" and (area, resource) == ("git", "items"):
-    prefix = "destino-"*40
-    yaml = "parameters:\n- name: environment\n  displayName: Ambiente\n  type: string\n  default: "+prefix+"test\n  values: ["+prefix+"test, "+prefix+"prod]\n"
+elif mode in schema_modes and (area, resource) == ("git", "refs"):
+    branch = next((a[len("filter="):] for a in args if a.startswith("filter=")), "heads/main")
+    print(json.dumps({"value": [{"name": "refs/"+branch, "objectId": "a"*40}]}))
+elif mode in schema_modes and (area, resource) == ("git", "items"):
+    if mode == "long-options":
+        prefix = "destino-"*40
+        yaml = "parameters:\n- name: environment\n  displayName: Ambiente\n  type: string\n  default: "+prefix+"test\n  values: ["+prefix+"test, "+prefix+"prod]\n"
+    else:
+        yaml = "parameters:\n- name: label\n  displayName: Etiqueta\n  type: string\n  default: alpha beta\n"
     print(json.dumps({"content": yaml}))
 else:
     sys.exit("unsupported fixture read")

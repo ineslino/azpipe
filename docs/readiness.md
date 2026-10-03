@@ -35,6 +35,32 @@ Full readiness also requires real Azure QA, WSL and VoiceOver/Narrator/Orca jour
 Missing evidence is pending. Do not publish a maximum score while required evidence
 or blocking defects remain.
 
+### Criteria before rescoring
+
+A score of 3 needs a named limitation or a concrete observation. A score of 4 needs
+observed excellence across the applicable journey, not merely a clean detector or
+the absence of a reported defect. Keep missing evidence separate from an observed
+product failure; completing these checks does not automatically award a 4.
+
+| Heuristic | Journey and acceptance criterion |
+| --- | --- |
+| Visibility | Current context, focus, selection and async operation are identifiable; cancellation never leaves a false loading state; accepted and uncertain runs stay distinct. |
+| Domain match | Organisation/project ownership, RUN/PLAN, branch, SHA and sent/default parameters match the actual request; operator-facing review states use the interface language. |
+| Control and freedom | Esc preserves preparation or discards only the open edit; cancelling a read stops it and rejects late responses; reopening the same context retains preparation. |
+| Consistency | Equivalent actions and states use the same labels, focus markers and keyboard behaviour in forms, menus, review, monitoring and history. |
+| Error prevention | Visible parameter edits are the values sent; context changes explain the reset; limits, preview gates and exact confirmations remain enforced. |
+| Recognition | Full option values, target context, branch and recovery information are accessible at 60/80/120 columns without recalling hidden identifiers. |
+| Efficiency | Search works for typing, bursts and paste; batches and shortcuts preserve their scope; a failed item does not block the next valid item. |
+| Minimalism | Sections and tables remain aligned; long content, errors and required controls fit the supported sizes; decorative content yields to the task. |
+| Recovery | An invalid profile preserves preparation and allows another choice; all diagnostics can be inspected; renewed sessions replace the client while retaining preparation. |
+| Help | Available actions and consequences are visible in the relevant state; documented keyboard, live Azure, WSL and assistive journeys match the installed version. |
+
+Record the revision, environment, input sequence, observed result and evidence for
+each check. Repeat the affected path in the installed binary and obtain an
+independent review. Real Azure, WSL and assistive gates remain pending until their
+required environments have been exercised. A local correction closes its defect,
+not an unrelated external gate.
+
 ## Local data
 
 Settings and TUI journals use protected temporary files and replacement writes.

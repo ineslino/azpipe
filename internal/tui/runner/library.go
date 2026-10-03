@@ -139,15 +139,17 @@ func (m AppModel) libraryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		l.details, l.detailScroll = true, 0
 		return m, nil
 	}
+	previousCursor := l.cursor
 	switch key.String() {
 	case "up", "k":
 		l.cursor = max(0, l.cursor-1)
 	case "down", "j":
 		l.cursor = min(max(0, count-1), l.cursor+1)
 	case "enter":
-		if count == 0 || l.err != "" {
+		if count == 0 {
 			return m, nil
 		}
+		l.err, l.errorScroll = "", 0
 		if l.kind == "profiles" {
 			org := m.organization
 			if m.demo {
@@ -180,6 +182,9 @@ func (m AppModel) libraryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, refreshRuns(m.service, m.execution.runs, token, m.execution.journal, m.organization, m.project)
 			}
 		}
+	}
+	if l.cursor != previousCursor {
+		l.err, l.errorScroll = "", 0
 	}
 	return m, nil
 }

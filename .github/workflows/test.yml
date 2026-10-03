@@ -21,11 +21,13 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      AZPIPE_TEST_BINARY: ${{ runner.temp }}/azpipe${{ matrix.ext }}
-      AZPIPE_QA_CAPTURE_DIR: ${{ runner.temp }}/azpipe-qa-captures
     steps:
       - uses: actions/checkout@v4
+      - name: Set acceptance paths
+        run: |
+          temp_dir="${RUNNER_TEMP//\\//}"
+          echo "AZPIPE_TEST_BINARY=$temp_dir/azpipe${{ matrix.ext }}" >> "$GITHUB_ENV"
+          echo "AZPIPE_QA_CAPTURE_DIR=$temp_dir/azpipe-qa-captures" >> "$GITHUB_ENV"
       - uses: actions/setup-go@v5
         with:
           go-version: '1.27.1'

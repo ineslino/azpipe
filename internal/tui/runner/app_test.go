@@ -125,7 +125,7 @@ func TestAppWorkflow_RejectsStalePreviewAndWrongTarget(t *testing.T) {
 		t.Fatalf("stale preview changed active review:\n%s", model.View())
 	}
 
-	currentMsg := currentPreviewCmd().(previewFinishedMsg)
+	currentMsg := previewFinal(t, currentPreviewCmd)
 	wrongTarget := currentMsg
 	wrongTarget.token.target = "forged-preview-target"
 	updated, _ = model.Update(wrongTarget)
@@ -570,12 +570,35 @@ func runAppCmd(t *testing.T, model AppModel, cmd tea.Cmd) (AppModel, tea.Cmd) {
 	if cmd == nil {
 		t.Fatal("expected command")
 	}
-	updated, next := model.Update(cmd())
-	app, ok := updated.(AppModel)
-	if !ok {
-		t.Fatalf("command update model = %T, want AppModel", updated)
+	msg := cmd()
+	for {
+		updated, next := model.Update(msg)
+		app, ok := updated.(AppModel)
+		if !ok {
+			t.Fatalf("command update model = %T, want AppModel", updated)
+		}
+		if _, progress := msg.(previewProgressMsg); !progress || next == nil {
+			return app, next
+		}
+		model, msg = app, next()
 	}
-	return app, next
+}
+
+func previewFinal(t *testing.T, cmd tea.Cmd) previewFinishedMsg {
+	t.Helper()
+	msg := cmd()
+	for i := 0; i <= domainrunner.MaxBatchSize; i++ {
+		switch event := msg.(type) {
+		case previewProgressMsg:
+			msg = <-event.next
+		case previewFinishedMsg:
+			return event
+		default:
+			t.Fatalf("unexpected preview event %T", msg)
+		}
+	}
+	t.Fatal("preview did not finish")
+	return previewFinishedMsg{}
 }
 
 func assertQuit(t *testing.T, cmd tea.Cmd) {

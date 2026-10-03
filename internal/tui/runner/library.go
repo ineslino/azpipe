@@ -2,7 +2,6 @@ package runner
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -13,13 +12,15 @@ import (
 )
 
 type libraryModel struct {
-	kind        string
-	cursor      int
-	name        textinput.Model
-	profiles    []domain.Profile
-	journals    []*domain.Journal
-	err         string
-	errorScroll int
+	kind         string
+	cursor       int
+	name         textinput.Model
+	profiles     []domain.Profile
+	journals     []*domain.Journal
+	err          string
+	errorScroll  int
+	details      bool
+	detailScroll int
 }
 
 func (m *AppModel) openLibrary(kind string) {
@@ -64,6 +65,17 @@ func (m AppModel) libraryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	l := m.library
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
+		return m, nil
+	}
+	if l.details {
+		switch key.String() {
+		case "esc", "d":
+			l.details = false
+		case "pgdown", "down":
+			l.detailScroll++
+		case "pgup", "up":
+			l.detailScroll = max(0, l.detailScroll-1)
+		}
 		return m, nil
 	}
 	if l.err != "" {
@@ -123,6 +135,10 @@ func (m AppModel) libraryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if l.kind == "history" {
 		count = len(l.journals)
 	}
+	if key.String() == "d" && l.kind == "history" && count > 0 {
+		l.details, l.detailScroll = true, 0
+		return m, nil
+	}
 	switch key.String() {
 	case "up", "k":
 		l.cursor = max(0, l.cursor-1)
@@ -175,6 +191,14 @@ func (l libraryModel) view(width, height int) string {
 	if height == 0 {
 		height = defaultHeight
 	}
+	if l.details && len(l.journals) > 0 {
+		j := l.journals[l.cursor]
+		lines := []string{"Detalhe do lote · último estado guardado", journalUpdated(j), "Ficheiro: " + j.Path(), ""}
+		for _, r := range j.Runs {
+			lines = append(lines, fmt.Sprintf("%s · pipeline %d · run %d · %s", r.PipelineName, r.PipelineID, r.Run.ID, historyState(r)), r.Error, "")
+		}
+		return textPage(strings.Join(lines, "\n"), width, l.detailScroll, max(1, height-5)) + "\n\n" + shortcutBar(width, "pgup/pgdown detalhe", "esc voltar aos lotes")
+	}
 	title := "Perfis guardados"
 	if l.kind == "history" {
 		title = "Lotes · retomar acompanhamento"
@@ -190,19 +214,30 @@ func (l libraryModel) view(width, height int) string {
 		if l.kind == "history" {
 			count = len(l.journals)
 		}
-		start := max(0, l.cursor-max(1, height-9)+1)
-		for i := start; i < min(count, start+max(1, height-9)); i++ {
+		capacity := max(1, height-12)
+		start := max(0, l.cursor-capacity+1)
+		for i := start; i < min(count, start+capacity); i++ {
 			line := ""
 			if l.kind == "profiles" {
 				p := l.profiles[i]
 				line = p.Name + " · " + quantity(len(p.Selections), "pipeline", "pipelines")
 			} else {
 				j := l.journals[i]
-				name := filepath.Base(j.Path())
-				if j.Path() == "" {
-					name = "lote de demonstração"
+				names := []string{}
+				for k, r := range j.Runs {
+					if k >= 2 {
+						break
+					}
+					name := r.PipelineName
+					if name == "" {
+						name = fmt.Sprintf("pipeline %d", r.PipelineID)
+					}
+					names = append(names, name)
 				}
-				line = name + " · " + quantity(len(j.Runs), "run", "runs")
+				line = strings.Join(names, " / ")
+				if len(j.Runs) > 2 {
+					line += fmt.Sprintf(" +%d", len(j.Runs)-2)
+				}
 			}
 			style := catalogDetailStyle
 			marker := "  "
@@ -214,8 +249,27 @@ func (l libraryModel) view(width, height int) string {
 		}
 		if count == 0 {
 			lines = append(lines, "Nenhum registo neste contexto.")
+			if l.kind == "profiles" {
+				lines = append(lines, "Volta ao catálogo, selecciona pipelines", "e usa s para guardar o primeiro perfil.")
+			} else {
+				lines = append(lines, "Volta ao catálogo e revê uma selecção para criar um lote.")
+			}
 		}
 		if l.kind == "history" {
+			if count > 0 {
+				j := l.journals[l.cursor]
+				counts := map[string]int{}
+				for _, r := range j.Runs {
+					counts[historyState(r)]++
+				}
+				states := []string{}
+				for _, s := range []string{"incerta", "erro", "falhou", "cancelada", "concluída", "a correr", "em fila", "parcial"} {
+					if counts[s] > 0 {
+						states = append(states, fmt.Sprintf("%d %s", counts[s], s))
+					}
+				}
+				lines = append(lines, "", catalogDetailStyle.Render(truncateWidth("Último estado: "+strings.Join(states, " · "), width)), catalogDetailStyle.Render(journalUpdated(j)))
+			}
 			lines = append(lines, "", catalogDetailStyle.Render("Retomar apenas consulta IDs conhecidos. Nunca volta a lançar runs."))
 		} else {
 			lines = append(lines, "", catalogDetailStyle.Render("Carregar substitui a selecção. Exige nova preview e confirmação."))
@@ -231,6 +285,47 @@ func (l libraryModel) view(width, height int) string {
 	if l.kind == "history" {
 		action = "enter acompanhar lote"
 	}
-	lines = append(lines, "", shortcutBar(width, "↑/↓ escolher", action, "esc voltar"))
+	items := []string{"esc voltar"}
+	if l.kind == "save" {
+		items = append([]string{action}, items...)
+	} else if l.err == "" && ((l.kind == "history" && len(l.journals) > 0) || (l.kind == "profiles" && len(l.profiles) > 0)) {
+		items = append([]string{"↑/↓ escolher", action}, items...)
+		if l.kind == "history" {
+			items = append(items, "d detalhe")
+		}
+	}
+	lines = append(lines, "", shortcutBar(width, items...))
 	return strings.Join(lines, "\n")
+}
+
+func journalUpdated(j *domain.Journal) string {
+	if j.UpdatedAt.IsZero() {
+		return "Data indisponível · demonstração offline"
+	}
+	return "Actualizado: " + j.UpdatedAt.Local().Format("02/01/2006 15:04")
+}
+
+func historyState(r domain.JournalRecord) string {
+	if r.Run.ID == 0 {
+		return "incerta"
+	}
+	if r.Error != "" {
+		return "erro"
+	}
+	if r.Run.State == "completed" {
+		switch r.Run.Result {
+		case "succeeded":
+			return "concluída"
+		case "failed":
+			return "falhou"
+		case "canceled":
+			return "cancelada"
+		default:
+			return "parcial"
+		}
+	}
+	if r.Run.State == "inProgress" {
+		return "a correr"
+	}
+	return "em fila"
 }

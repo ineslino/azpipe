@@ -343,7 +343,7 @@ func TestPrioritiesActionGroupsRemainNavigable(t *testing.T) {
 	m = u.(AppModel)
 	m, _ = pressApp(t, m, "a")
 	view := ansi.Strip(m.View())
-	for _, group := range []string{"SELECCIONAR", "CONFIGURAR", "PERFIS E HISTÓRICO", "CONTEXTO"} {
+	for _, group := range []string{"SELECCIONAR", "PIPELINE", "LOTE", "AVANÇADO", "PERFIS E HISTÓRICO", "CONTEXTO"} {
 		if !strings.Contains(view, "│ "+group) {
 			t.Fatalf("missing real group heading %q", group)
 		}

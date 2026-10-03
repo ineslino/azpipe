@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -12,11 +13,14 @@ import (
 
 type parameterField struct{ name, value textinput.Model }
 type parameterEditor struct {
-	rows       []parameterField
-	focus      int
-	warning    string
-	schema     *azdo.ParameterSchema
-	useDefault []bool
+	rows          []parameterField
+	focus         int
+	warning       string
+	warningScroll int
+	optionsOpen   bool
+	optionCursor  int
+	schema        *azdo.ParameterSchema
+	useDefault    []bool
 }
 
 func newSchemaEditor(schema azdo.ParameterSchema, values map[string]string, modeParameter string) (parameterEditor, error) {
@@ -92,6 +96,44 @@ func (e *parameterEditor) focusField() {
 }
 
 func (e *parameterEditor) update(msg tea.Msg) tea.Cmd {
+	if key, ok := msg.(tea.KeyMsg); ok {
+		if e.optionsOpen {
+			options := e.options(e.focus / 2)
+			switch key.String() {
+			case "esc", "f2":
+				e.optionsOpen = false
+			case "up":
+				e.optionCursor = max(0, e.optionCursor-1)
+			case "down":
+				e.optionCursor = min(len(options)-1, e.optionCursor+1)
+			case "enter":
+				e.rows[e.focus/2].value.SetValue(options[e.optionCursor])
+				e.useDefault[e.focus/2] = false
+				e.optionsOpen = false
+			}
+			return nil
+		}
+		if key.String() == "pgdown" || key.String() == "pgup" {
+			if key.String() == "pgdown" {
+				e.warningScroll++
+			} else {
+				e.warningScroll = max(0, e.warningScroll-1)
+			}
+			return nil
+		}
+		if key.String() == "f2" && e.schema != nil && len(e.rows) > 0 {
+			options := e.options(e.focus / 2)
+			if len(options) > 0 {
+				e.optionsOpen, e.optionCursor = true, 0
+				for i, value := range options {
+					if value == e.rows[e.focus/2].value.Value() {
+						e.optionCursor = i
+					}
+				}
+			}
+			return nil
+		}
+	}
 	if e.schema != nil {
 		if len(e.rows) == 0 {
 			return nil
@@ -118,10 +160,7 @@ func (e *parameterEditor) update(msg tea.Msg) tea.Cmd {
 			if !p.Editable() {
 				return nil
 			}
-			options := p.Values
-			if p.Type == "boolean" && len(options) == 0 {
-				options = []string{"false", "true"}
-			}
+			options := e.options(i)
 			if len(options) > 0 {
 				if key.String() == "left" || key.String() == "right" || key.String() == " " {
 					index := 0
@@ -182,6 +221,32 @@ func (e *parameterEditor) update(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
+func (e parameterEditor) options(i int) []string {
+	if e.schema == nil || !e.schema.Parameters[i].Editable() {
+		return nil
+	}
+	p := e.schema.Parameters[i]
+	if p.Type == "boolean" && len(p.Values) == 0 {
+		return []string{"false", "true"}
+	}
+	return p.Values
+}
+
+func (e *parameterEditor) setWarning(err error) {
+	e.warning, e.warningScroll = err.Error(), 0
+	var invalid *azdo.ParameterValidationError
+	if e.schema != nil && errors.As(err, &invalid) {
+		for i, p := range e.schema.Parameters {
+			if p.Name == invalid.Parameter {
+				e.focus = i*2 + 1
+				e.focusField()
+				e.warning = strings.Replace(e.warning, p.Name, p.DisplayName, 1)
+				break
+			}
+		}
+	}
+}
+
 func (e parameterEditor) values() (map[string]string, error) {
 	values := map[string]string{}
 	if e.schema != nil {
@@ -230,8 +295,26 @@ func (e parameterEditor) view(width, height int, name string) string {
 }
 
 func (e parameterEditor) schemaView(width, height int, name string) string {
-	lines := []string{catalogTitleStyle.Render(truncateWidth("Configurar · "+name, width)), "", "Altera os valores necessários. Ctrl+S aplica à selecção.", "Não introduzas segredos.", ""}
-	count := max(1, (height-12)/3)
+	if e.optionsOpen {
+		options := e.options(e.focus / 2)
+		lines := []string{catalogTitleStyle.Render("Opções · " + e.schema.Parameters[e.focus/2].DisplayName), "", "Enter escolhe; Esc conserva o valor actual.", ""}
+		count := max(1, height-8)
+		start := max(0, e.optionCursor-count+1)
+		for i := start; i < min(len(options), start+count); i++ {
+			style, marker := catalogTextStyle, "  "
+			if i == e.optionCursor {
+				style, marker = catalogActiveStyle.Width(width), "> "
+			}
+			lines = append(lines, style.Render(truncateWidth(marker+options[i], width)))
+		}
+		return strings.Join(append(lines, "", shortcutBar(width, "↑/↓ escolher", "enter aplicar opção", "esc voltar")), "\n")
+	}
+	position := "Sem campos editáveis."
+	if len(e.rows) > 0 {
+		position = fmt.Sprintf("Campo %d de %d · Tab percorre todos", e.focus/2+1, len(e.rows))
+	}
+	lines := []string{catalogTitleStyle.Render(truncateWidth("Configurar · "+name, width)), catalogDetailStyle.Render(position), "Ctrl+S aplica apenas à pipeline activa.", "Não introduzas segredos.", ""}
+	count := max(1, (height-13)/4)
 	start := max(0, e.focus/2-count+1)
 	for i := start; i < min(len(e.rows), start+count); i++ {
 		p := e.schema.Parameters[i]
@@ -244,7 +327,11 @@ func (e parameterEditor) schemaView(width, height int, name string) string {
 		if !e.useDefault[i] {
 			status = "valor personalizado"
 		}
-		label := fmt.Sprintf("%s [%s · %s]", p.DisplayName, p.Type, status)
+		kind := p.Type
+		if len(e.options(i)) > 0 {
+			kind = "escolha"
+		}
+		label := fmt.Sprintf("%s [%s · %s]", p.DisplayName, kind, status)
 		style := catalogDetailStyle
 		if i == e.focus/2 {
 			style = catalogHeaderStyle
@@ -256,13 +343,23 @@ func (e parameterEditor) schemaView(width, height int, name string) string {
 		} else {
 			lines = append(lines, row.value.View())
 		}
+		if i == e.focus/2 && len(e.options(i)) > 0 {
+			options := e.options(i)
+			if len(options) <= 4 {
+				lines = append(lines, catalogDetailStyle.Render(truncateWidth("Opções: "+strings.Join(options, " | "), width)))
+			} else {
+				lines = append(lines, catalogDetailStyle.Render(fmt.Sprintf("%d opções · F2 consulta a lista completa", len(options))))
+			}
+		} else {
+			lines = append(lines, "")
+		}
 		lines = append(lines, "")
 	}
 	if len(e.rows) == 0 {
 		lines = append(lines, "Sem parâmetros editáveis. RUN/PLAN é controlado no catálogo.")
 	}
 	if e.warning != "" {
-		lines = append(lines, catalogWarningStyle.Render(truncateWidth(e.warning, width)))
+		lines = append(lines, catalogWarningStyle.Render(textPage(e.warning, width, e.warningScroll, 2)), "PgUp/PgDn: percorrer erro completo")
 	}
 	lines = append(lines, "", shortcutBar(width, "tab próximo", "←/→ escolher opção", "ctrl+r repor predefinido", "ctrl+s aplicar", "esc descartar"))
 	return strings.Join(lines, "\n")

@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ineslino/azpipe/internal/localfile"
 	"github.com/spf13/viper"
+	"go.yaml.in/yaml/v3"
 )
 
 const (
@@ -70,6 +72,9 @@ func save(changes map[string]string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
+	if err := localfile.Protect(dir); err != nil {
+		return err
+	}
 	path := filepath.Join(dir, configFile+"."+configType)
 	values := make(map[string]string, 6)
 	if contents, readErr := os.ReadFile(path); readErr == nil && len(contents) > 0 {
@@ -90,14 +95,9 @@ func save(changes map[string]string) error {
 		values[key] = value
 	}
 
-	persisted := viper.New()
-	persisted.SetConfigType(configType)
-	persisted.SetConfigPermissions(0o600)
-	for key, value := range values {
-		persisted.Set(key, value)
-	}
-	if err := persisted.WriteConfigAs(path); err != nil {
+	data, err := yaml.Marshal(values)
+	if err != nil {
 		return err
 	}
-	return os.Chmod(path, 0o600)
+	return localfile.WriteAtomic(path, data)
 }

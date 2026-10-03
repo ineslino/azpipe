@@ -3,9 +3,11 @@ package runner
 import (
 	"context"
 	"encoding/json"
-	"github.com/ineslino/azpipe/internal/azdo"
 	"os"
 	"testing"
+
+	"github.com/ineslino/azpipe/internal/azdo"
+	"github.com/ineslino/azpipe/internal/localfile"
 )
 
 type pinClient struct{ azdo.MockClient }
@@ -59,8 +61,8 @@ func TestJournalPreservesAcceptedAndUnknown(t *testing.T) {
 	if err := json.Unmarshal(data, &saved); err != nil {
 		t.Fatal(err)
 	}
-	info, _ := os.Stat(j.Path())
-	if saved.Runs[0].Run.ID != 42 || saved.Runs[1].Error == "" || info.Mode().Perm() != 0600 {
+
+	if saved.Runs[0].Run.ID != 42 || saved.Runs[1].Error == "" || localfile.Check(j.Path()) != nil {
 		t.Fatal("journal state or permissions incorrect")
 	}
 }

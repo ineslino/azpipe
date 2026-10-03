@@ -1,11 +1,11 @@
 package runner
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/ineslino/azpipe/internal/azdo"
+	"github.com/ineslino/azpipe/internal/localfile"
 )
 
 func TestProfilesRoundTripContextAndNoOverwrite(t *testing.T) {
@@ -18,9 +18,8 @@ func TestProfilesRoundTripContextAndNoOverwrite(t *testing.T) {
 	if err := SaveProfile(p); err == nil {
 		t.Fatal("overwrote profile")
 	}
-	info, _ := os.Stat(filepath.Join(root, "profiles", "dev-stack.json"))
-	if info.Mode().Perm() != 0600 {
-		t.Fatal(info.Mode())
+	if err := localfile.Check(filepath.Join(root, "profiles", "dev-stack.json")); err != nil {
+		t.Fatal(err)
 	}
 	profiles, err := ListProfiles("https://dev.azure.com/example", "project")
 	if err != nil || len(profiles) != 1 {

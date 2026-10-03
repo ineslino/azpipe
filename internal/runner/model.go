@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -12,6 +13,15 @@ const defaultBranch = "main"
 // AllProjects is the TUI context value used when the catalog spans the organization.
 // It is never sent to an Azure DevOps API as a project name.
 const AllProjects = "*"
+
+const MaxBatchSize = 500
+
+func ValidateBatchSize(size int) error {
+	if size < 1 || size > MaxBatchSize {
+		return fmt.Errorf("lote deve ter 1 a %d pipelines", MaxBatchSize)
+	}
+	return nil
+}
 
 // Mode defines whether a selected pipeline is queued normally or as a plan.
 type Mode string

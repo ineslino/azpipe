@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/ineslino/azpipe/internal/localfile"
 )
 
 func TestCommandIdentityMismatchBlocksRequest(t *testing.T) {
@@ -31,8 +33,7 @@ func TestCommandAdapterUsesPrivateBodyAndContinuationToken(t *testing.T) {
 		for i, arg := range args {
 			if arg == "--in-file" {
 				bodyPath = args[i+1]
-				info, err := os.Stat(bodyPath)
-				if err != nil || info.Mode().Perm() != 0600 {
+				if err := localfile.Check(bodyPath); err != nil {
 					t.Fatal("body permissions")
 				}
 				data, _ := os.ReadFile(bodyPath)

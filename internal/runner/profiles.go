@@ -3,12 +3,14 @@ package runner
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ineslino/azpipe/internal/azdo"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/ineslino/azpipe/internal/azdo"
+	"github.com/ineslino/azpipe/internal/localfile"
 )
 
 type ProfileSelection struct {
@@ -72,6 +74,9 @@ func SaveProfile(profile Profile) error {
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
+	if err = localfile.Protect(dir); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(profile, "", "  ")
 	if err != nil {
 		return err
@@ -80,6 +85,11 @@ func SaveProfile(profile Profile) error {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return fmt.Errorf("não foi possível criar perfil (nomes existentes não são substituídos): %w", err)
+	}
+	if err = localfile.Protect(path); err != nil {
+		f.Close()
+		os.Remove(path)
+		return err
 	}
 	if _, err = f.Write(data); err != nil {
 		f.Close()
@@ -95,7 +105,7 @@ func SaveProfile(profile Profile) error {
 }
 
 func validateProfile(p Profile) error {
-	if p.Version != 1 || p.Name == "" || p.Organization == "" || p.Project == "" || len(p.Selections) == 0 || len(p.Selections) > 500 {
+	if p.Version != 1 || p.Name == "" || p.Organization == "" || p.Project == "" || ValidateBatchSize(len(p.Selections)) != nil {
 		return fmt.Errorf("perfil incompleto ou versão não suportada")
 	}
 	seen := map[string]bool{}

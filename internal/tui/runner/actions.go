@@ -22,8 +22,12 @@ func (a catalogAction) group() string {
 		return "Perfis e histórico"
 	case "c", "B":
 		return "Contexto"
+	case "e", "m":
+		return "Pipeline"
+	case "P", "R", "b":
+		return "Lote"
 	default:
-		return "Configurar"
+		return "Avançado"
 	}
 }
 
@@ -58,7 +62,7 @@ func (m AppModel) catalogActions() []catalogAction {
 	}
 	return []catalogAction{
 		{"Rever selecção", "enter", "Valida branch e parâmetros. Ainda não lança runs.", selection},
-		{"Procurar pipelines", "/", "Filtra por projecto, nome, ID, tipo, pasta, repositório ou tag.", ""},
+		{"Procurar pipelines", "/", "Filtra por projecto, nome, ID, tipo, pasta, repositório ou tag. Ctrl+U limpa; Esc mantém o filtro.", ""},
 		{"Limpar selecções ocultas", "x", "Remove apenas selecções que a pesquisa actual esconde.", selection},
 		{"Configurar parâmetros da pipeline activa", "e", truncateWidth(pipeline.Name, max(12, m.width-40)) + ": abre campos tipados do YAML.", activeReason},
 		{"Alternar RUN / PLAN da pipeline activa", "m", truncateWidth(pipeline.Name, max(12, m.width-40)) + ": muda apenas esta pipeline seleccionada.", modeReason},
@@ -101,6 +105,13 @@ func (m AppModel) updateActions(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 		}
 		return m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(item.key)})
+	default:
+		for i, item := range items {
+			if key.String() == item.key {
+				m.actions = &i
+				return m.updateActions(tea.KeyMsg{Type: tea.KeyEnter})
+			}
+		}
 	}
 	return m, nil
 }
@@ -110,7 +121,7 @@ func (m AppModel) actionsView() string {
 	index := *m.actions
 	inner := max(1, m.width-4)
 	render := func(start, end int) string {
-		lines := []string{quantity(len(m.catalog.selected), "seleccionada", "seleccionadas") + " · escolhe com ↑/↓ e Enter"}
+		lines := []string{quantity(len(m.catalog.selected), "seleccionada", "seleccionadas") + " · tecla directa ou ↑/↓ e Enter"}
 		lastGroup := ""
 		for i := start; i < end; i++ {
 			item := items[i]

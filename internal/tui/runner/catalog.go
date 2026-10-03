@@ -147,6 +147,10 @@ func (m CatalogModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyMsg:
 		if typed.Type == tea.KeyEsc {
+			if m.input == inputParameterForm && m.editor.optionsOpen {
+				m.editor.update(msg)
+				return m, nil
+			}
 			return m.escape()
 		}
 		if m.input != inputNone {
@@ -173,6 +177,16 @@ func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case "A":
+		count := len(m.selected)
+		for _, p := range m.visible {
+			if _, selected := m.selected[domainrunner.PipelineKey(p)]; !selected {
+				count++
+			}
+		}
+		if err := domainrunner.ValidateBatchSize(count); err != nil {
+			m.warning = err.Error()
+			return m, nil
+		}
 		for _, pipeline := range m.visible {
 			key := domainrunner.PipelineKey(pipeline)
 			if _, selected := m.selected[key]; !selected {
@@ -231,6 +245,10 @@ func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if _, selected := m.selected[key]; selected {
 				delete(m.selected, key)
 			} else {
+				if len(m.selected) >= domainrunner.MaxBatchSize {
+					m.warning = "O lote já tem 500 pipelines. Remove uma selecção antes de continuar."
+					return m, nil
+				}
 				m.selected[key] = domainrunner.ModeRun
 			}
 			m.warning = ""
@@ -266,10 +284,13 @@ func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m CatalogModel) updateInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.input == inputParameterForm {
+		if m.editor.optionsOpen {
+			return m, m.editor.update(msg)
+		}
 		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "ctrl+s" {
 			values, err := m.editor.values()
 			if err != nil {
-				m.editor.warning = err.Error()
+				m.editor.setWarning(err)
 				return m, nil
 			}
 			if pipeline, ok := m.active(); ok {
@@ -318,13 +339,6 @@ func (m CatalogModel) updateInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m CatalogModel) escape() (tea.Model, tea.Cmd) {
 	if m.input == inputBranch {
 		m.branch.SetValue(m.branchBefore)
-	}
-	if m.input == inputSearch && m.search.Value() != "" {
-		m.search.SetValue("")
-		m.search.Blur()
-		m.input = inputNone
-		m.filter()
-		return m, nil
 	}
 	if m.input != inputNone {
 		m.search.Blur()
@@ -529,7 +543,7 @@ func (m CatalogModel) catalogCapacity() int {
 
 func (m CatalogModel) helpView() string {
 	if m.input == inputSearch {
-		return shortcutBar(max(1, m.width-4), "enter terminar pesquisa", "esc voltar à lista")
+		return shortcutBar(max(1, m.width-4), "enter terminar pesquisa", "ctrl+u limpar", "esc manter filtro")
 	}
 	if m.input == inputBranch {
 		return shortcutBar(max(1, m.width-4), "enter aplicar a todas", "esc cancelar edição")
@@ -537,17 +551,11 @@ func (m CatalogModel) helpView() string {
 	if m.input != inputNone {
 		return shortcutBar(max(1, m.width-4), "enter guardar e voltar à lista", "esc cancelar edição")
 	}
-	items := []string{"espaço seleccionar", "A seleccionar todas", "/ procurar"}
+	primary := "espaço seleccionar"
 	if len(m.selected) > 0 {
-		items = []string{"enter rever " + quantity(len(m.selected), "pipeline", "pipelines"), "espaço seleccionar"}
-		if p, ok := m.active(); ok {
-			items = append(items, "e configurar")
-			if _, selected := m.selected[domainrunner.PipelineKey(p)]; selected && p.PlanContract != nil {
-				items = append(items, "m RUN/PLAN")
-			}
-		}
+		primary = "enter rever " + quantity(len(m.selected), "pipeline", "pipelines")
 	}
-	return shortcutBar(max(1, m.width-4), items[0]) + "\n" + shortcutBar(max(1, m.width-4), append(items[1:], "d detalhe", "a/? acções e ajuda", ":q sair")...)
+	return shortcutBar(max(1, m.width-4), primary) + "\n" + shortcutBar(max(1, m.width-4), "/ procurar", "a/? acções e ajuda", ":q sair")
 }
 
 func (m CatalogModel) nextStep() string {

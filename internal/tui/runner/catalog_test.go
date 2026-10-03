@@ -103,14 +103,14 @@ func TestCatalogSearch_FiltersEveryPipelineAttribute(t *testing.T) {
 	}
 }
 
-func TestCatalogEscape_ClearsSearchWithoutQuitting(t *testing.T) {
+func TestCatalogEscape_KeepsSearchWithoutQuitting(t *testing.T) {
 	model := catalogFixture()
 	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
 	model = updateCatalog(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
 
 	model, cmd := updateCatalogWithCmd(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-	if got := model.search.Value(); got != "" {
-		t.Fatalf("search after escape = %q, want empty", got)
+	if got := model.search.Value(); got != "a" {
+		t.Fatalf("search after escape = %q, want a", got)
 	}
 	if cmd != nil {
 		if _, quit := cmd().(tea.QuitMsg); quit {

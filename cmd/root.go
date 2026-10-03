@@ -43,6 +43,7 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.Version = versionString()
 	cobra.OnInitialize(config.Init)
 
 	rootCmd.PersistentFlags().StringVar(&flagOrg, "org", "", "Azure DevOps org name or URL (overrides AZDO_ORG)")

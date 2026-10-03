@@ -27,7 +27,7 @@ non-called module/package findings are reported separately, not treated as absen
 ## UX score
 
 The critique uses ten Nielsen heuristics with scores 0–4. Display the normalized
-percentage: `total / applicable maximum × 100`. The original 33/40 is **82.5/100**;
+percentage: `total / applicable maximum × 100`. For example, 33/40 is **82.5/100**;
 changing the denominator does not improve the product. UX scores are judgments
 with evidence and confidence, not an automated certification or a guarantee.
 

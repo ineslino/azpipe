@@ -247,8 +247,9 @@ templates, and does not support classic pipelines or non-Azure-Repos YAML source
 The advanced JSON editor does not bypass these checks. The mode parameter remains
 owned by the RUN/PLAN control rather than being edited twice.
 
-F2 opens choices without altering the current/default value. Esc leaves it untouched;
-Enter chooses an option. Invalid input focuses its field and PgUp/PgDn exposes the
+F2 opens choices without altering the current/default value. PgUp/PgDn scrolls the
+complete focused value, including suffixes hidden by the list width. Esc leaves the
+value untouched; Enter chooses an option. Invalid input focuses its field and PgUp/PgDn exposes the
 complete error. Catalog search follows the project selector: Esc retains the filter,
 Ctrl+U clears it while editing, and selected hidden rows stay selected.
 

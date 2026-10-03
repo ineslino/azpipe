@@ -1,0 +1,13 @@
+{
+  "organization": "https://dev.azure.com/example-org",
+  "project": "AZPIPE-QA",
+  "projectId": "00000000-0000-0000-0000-000000000001",
+  "repository": "azpipe-qa",
+  "repositoryId": "00000000-0000-0000-0000-000000000002",
+  "branch": "azpipe-qa/flow",
+  "commit": "0123456789012345678901234567890123456789",
+  "pipelines": [
+    {"id": 101, "revision": 1, "fixture": "parameters.yml"},
+    {"id": 202, "revision": 1, "fixture": "plan.yml"}
+  ]
+}

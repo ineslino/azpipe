@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/ineslino/azpipe/internal/azdo"
+	"github.com/ineslino/azpipe/internal/localfile"
 	"github.com/ineslino/azpipe/internal/runner"
 	"github.com/spf13/cobra"
 )
@@ -87,8 +87,8 @@ func init() {
 				return fmt.Errorf("perfil não encontrado neste contexto")
 			}
 		}
-		if len(input) == 0 || len(input) > 500 {
-			return fmt.Errorf("lote deve ter 1 a 500 pipelines")
+		if err := runner.ValidateBatchSize(len(input)); err != nil {
+			return err
 		}
 		pipelines, err := client.ListPipelines(cmd.Context(), project)
 		if err != nil {
@@ -134,6 +134,11 @@ func init() {
 			return err
 		}
 		defer out.Close()
+		if err := localfile.Protect(journalPath); err != nil {
+			out.Close()
+			os.Remove(journalPath)
+			return err
+		}
 		if err := out.Close(); err != nil {
 			return err
 		}
@@ -142,25 +147,14 @@ func init() {
 			journal.Runs[i] = batchRecord{PipelineID: r.Selection.ID(), Error: "estado desconhecido: verificar Azure DevOps antes de repetir"}
 		}
 		save := func() error {
-			f, err := os.CreateTemp(filepath.Dir(journalPath), ".azpipe-*.tmp")
+			data, err := json.Marshal(journal)
 			if err != nil {
 				return err
 			}
-			defer os.Remove(f.Name())
-			if err := json.NewEncoder(f).Encode(journal); err != nil {
-				f.Close()
-				return err
-			}
-			if err := f.Sync(); err != nil {
-				f.Close()
-				return err
-			}
-			if err := f.Close(); err != nil {
-				return err
-			}
-			return os.Rename(f.Name(), journalPath)
+			return localfile.WriteAtomic(journalPath, append(data, '\n'))
 		}
 		if err := save(); err != nil {
+			os.Remove(journalPath)
 			return err
 		}
 		var mu sync.Mutex

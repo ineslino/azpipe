@@ -47,6 +47,7 @@ mkdir -p "$HOME/.local/bin"
 go build -o "$HOME/.local/bin/azpipe" .
 export PATH="$HOME/.local/bin:$PATH"
 azpipe --help
+azpipe --version
 azpipe demo
 ```
 
@@ -87,10 +88,10 @@ Usa `AZDO_PAT` injectado pelo teu mecanismo de credenciais e `AZDO_ORG` para o c
 | `a` / `?` | Menu de acções e ajuda, com descrições e motivos de indisponibilidade |
 | `A` | Seleccionar todas as pipelines visíveis |
 | Setas / `j` / `k` | Navegar |
-| `/` / espaço | Filtrar / seleccionar |
+| `/` / espaço | Filtrar / seleccionar; Esc conserva o filtro e Ctrl+U limpa durante a pesquisa |
 | `d` | Detalhe completo da pipeline; setas percorrem e Esc regressa |
 | `m` / `P` / `R` | Alternar modo / PLAN para selecção / RUN para selecção |
-| `e` / `b` | Parâmetros tipados / branch |
+| `e` / `b` | Parâmetros tipados / branch; F2 consulta opções sem alterar o valor |
 | `s` / `l` / `h` | Guardar perfil / carregar perfil / histórico |
 | `c` | Mudar o projecto ou voltar a **Todos os projectos** |
 | `B` | Abrir a gestão de branches do projecto e repositório seleccionados |
@@ -116,7 +117,7 @@ go vet ./...
 go build ./...
 ```
 
-Os testes HTTP usam servidores locais. CI está configurada para Linux/macOS e compilação Windows. Isto não prova execução nativa Windows/WSL nem integração real num ambiente empresarial. Ver [validação e publicação](docs/readiness.md) e [contribuição](CONTRIBUTING.md).
+Os testes HTTP usam servidores locais. A CI tem seis jobs nativos: Linux, macOS e Windows, em amd64/arm64, com PTY/ConPTY e verificação dos pacotes. A revisão mostra progresso por pipeline e só permite executar quando todas terminam. A selecção aceita até 500 pipelines. A integração Azure, WSL e leitores de ecrã têm critérios próprios no [guião de aceitação](docs/qa.md). Ver [validação e publicação](docs/readiness.md) e [contribuição](CONTRIBUTING.md).
 
 ## Documentação
 

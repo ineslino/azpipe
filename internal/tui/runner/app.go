@@ -33,6 +33,7 @@ type AppModel struct {
 	context       contextModel
 	contextClient azdo.Client
 	contextCancel context.CancelFunc
+	previewCancel context.CancelFunc
 	catalog       CatalogModel
 	review        reviewModel
 	execution     executionModel
@@ -146,10 +147,24 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.command.err = "Ainda a submeter; aguarda a confirmação do lote."
 					return m, nil
 				}
+				if m.screen == ScreenReview && m.review.previewing {
+					m.invalidateOperation()
+					m.command.close()
+					return m, nil
+				}
+				if m.screen == ScreenContext && m.context.loading {
+					m.cancelContextLoad()
+					m.invalidateOperation()
+					m.context.loading = false
+					m.context.notice = "Leitura cancelada. Enter repete; :q sai."
+					m.command.close()
+					return m, nil
+				}
 				if m.branchBrowser != nil && m.branchBrowser.cancel != nil {
 					m.branchBrowser.cancel()
 				}
 				m.cancelContextLoad()
+				m.cancelPreview()
 				return m, tea.Quit
 			case commandBack:
 				return m.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -178,6 +193,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if key, ok := msg.(tea.KeyMsg); ok && (key.Type == tea.KeyCtrlC || key.Type == tea.KeyCtrlD) {
 		m.cancelContextLoad()
+		m.cancelPreview()
 		return m, tea.Quit
 	}
 	if key, ok := msg.(tea.KeyMsg); ok && key.Type == tea.KeyEsc && m.screen == ScreenContext && m.context.loading {
@@ -309,20 +325,40 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen != ScreenCatalog || selectionsOperationTarget(typed.Selections) != selectionsOperationTarget(m.catalog.Selected()) {
 			return m, nil
 		}
+		if err := domainrunner.ValidateBatchSize(len(typed.Selections)); err != nil {
+			m.catalog.warning = err.Error()
+			return m, nil
+		}
 		token := m.startOperation(selectionsOperationTarget(typed.Selections))
 		m.review = newReviewModel(typed.Selections, m.demo, token)
+		m.review.organization, m.review.project = m.organization, m.project
 		m.review.height = max(1, m.height-2)
 		m.review.width = max(1, m.width-4)
 		m.screen = ScreenReview
 		if m.demo {
 			return m, nil
 		}
-		return m, previewSelections(m.service, typed.Selections, token)
+		ctx, cancel := context.WithCancel(context.Background())
+		m.previewCancel = cancel
+		m.review.previewing = true
+		return m, previewSelections(ctx, m.service, typed.Selections, token)
+	case previewProgressMsg:
+		if !m.accepts(ScreenReview, typed.token) || typed.index < 0 || typed.index >= len(m.review.reviews) ||
+			selectionsOperationTarget([]domainrunner.Selection{typed.review.Selection}) != selectionsOperationTarget([]domainrunner.Selection{m.review.reviews[typed.index].Selection}) {
+			return m, nil
+		}
+		m.review.reviews[typed.index] = typed.review
+		return m, func() tea.Msg { return <-typed.next }
 	case previewFinishedMsg:
 		if !m.accepts(ScreenReview, typed.token) || typed.token.target != reviewsOperationTarget(typed.reviews) || typed.token.target != reviewsOperationTarget(m.review.reviews) {
 			return m, nil
 		}
 		m.review.reviews = typed.reviews
+		m.review.previewing = false
+		if m.previewCancel != nil {
+			m.previewCancel()
+			m.previewCancel = nil
+		}
 		for i, review := range typed.reviews {
 			if review.Err != nil {
 				m.review.offset = i
@@ -615,7 +651,7 @@ func (m AppModel) contextHeader() string {
 	if project == domainrunner.AllProjects {
 		project = allProjectsLabel
 	}
-	return header + catalogDetailStyle.Render(truncateWidth(fmt.Sprintf("Organização: %s | Projecto: %s", m.organization, project), m.width)) + "\n"
+	return header + catalogDetailStyle.Render(truncateWidth(fmt.Sprintf("Projecto: %s | Organização: %s", project, m.organization), m.width)) + "\n"
 }
 
 func demoPipelines() []azdo.Pipeline {
@@ -649,8 +685,17 @@ func (m *AppModel) cancelContextLoad() {
 }
 
 func (m *AppModel) invalidateOperation() {
+	m.cancelPreview()
 	m.generation++
 	m.active = operationToken{generation: m.generation}
+}
+
+func (m *AppModel) cancelPreview() {
+	if m.previewCancel != nil {
+		m.previewCancel()
+		m.previewCancel = nil
+		m.review.previewing, m.review.cancelled = false, true
+	}
 }
 
 func (m AppModel) accepts(screen Screen, token operationToken) bool {

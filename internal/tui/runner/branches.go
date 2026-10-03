@@ -271,6 +271,10 @@ func (m BranchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stage = "review"
 		m.cursor = 0
 		m.confirmation.SetValue("")
+		m.confirmation.Blur()
+		if m.demo {
+			return m, nil
+		}
 		return m, m.confirmation.Focus()
 	case branchDeleted:
 		if v.token != m.generation {

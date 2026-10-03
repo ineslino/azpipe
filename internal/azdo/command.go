@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ineslino/azpipe/internal/localfile"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/build"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/pipelines"
@@ -75,6 +76,10 @@ func (c *CommandClient) invoke(ctx context.Context, area, resource, project, met
 			return "", err
 		}
 		defer os.Remove(f.Name())
+		if err := localfile.Protect(f.Name()); err != nil {
+			f.Close()
+			return "", err
+		}
 		if err := json.NewEncoder(f).Encode(body); err != nil {
 			f.Close()
 			return "", err

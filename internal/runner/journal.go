@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/ineslino/azpipe/internal/azdo"
+	"github.com/ineslino/azpipe/internal/localfile"
 )
 
 type JournalRecord struct {
@@ -23,11 +25,15 @@ type Journal struct {
 	Organization string          `json:"organization"`
 	Project      string          `json:"project"`
 	Runs         []JournalRecord `json:"runs"`
+	UpdatedAt    time.Time       `json:"-"`
 	path         string
 	mu           sync.Mutex
 }
 
 func NewJournal(organization, project string, reviews []Review) (*Journal, error) {
+	if err := ValidateBatchSize(len(reviews)); err != nil {
+		return nil, err
+	}
 	dir, err := DataDirectory("runs")
 	if err != nil {
 		return nil, err
@@ -35,11 +41,17 @@ func NewJournal(organization, project string, reviews []Review) (*Journal, error
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
+	if err := localfile.Protect(dir); err != nil {
+		return nil, err
+	}
 	f, err := os.CreateTemp(dir, "batch-*.json")
 	if err != nil {
 		return nil, err
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		os.Remove(f.Name())
+		return nil, err
+	}
 	j := &Journal{Organization: organization, Project: project, path: f.Name(), Runs: make([]JournalRecord, len(reviews))}
 	for i, r := range reviews {
 		recordProject := r.Selection.Pipeline.Project
@@ -48,7 +60,11 @@ func NewJournal(organization, project string, reviews []Review) (*Journal, error
 		}
 		j.Runs[i] = JournalRecord{PipelineID: r.Selection.ID(), Project: recordProject, PipelineName: r.Selection.Pipeline.Name, Error: "submissão incerta: verificar Azure DevOps antes de repetir"}
 	}
-	return j, j.save()
+	if err := j.save(); err != nil {
+		os.Remove(j.path)
+		return nil, err
+	}
+	return j, nil
 }
 
 func LoadJournal(path, organization, project string) (*Journal, error) {
@@ -59,7 +75,7 @@ func LoadJournal(path, organization, project string) (*Journal, error) {
 	if !SameOrganization(j.Organization, organization) || !SameContext(j.Project, project) {
 		return nil, fmt.Errorf("lote pertence a outro contexto")
 	}
-	if len(j.Runs) == 0 || len(j.Runs) > 500 {
+	if ValidateBatchSize(len(j.Runs)) != nil {
 		return nil, fmt.Errorf("lote vazio ou demasiado grande")
 	}
 	seen := map[int]bool{}
@@ -69,6 +85,11 @@ func LoadJournal(path, organization, project string) (*Journal, error) {
 		}
 		seen[r.Run.ID] = true
 	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	j.UpdatedAt = info.ModTime()
 	return j, nil
 }
 
@@ -100,12 +121,10 @@ func ListJournals(organization, project string) ([]*Journal, error) {
 		result = append(result, j)
 	}
 	sort.Slice(result, func(i, k int) bool {
-		a, ea := os.Stat(result[i].path)
-		b, eb := os.Stat(result[k].path)
-		if ea != nil || eb != nil {
+		if result[i].UpdatedAt.Equal(result[k].UpdatedAt) {
 			return result[i].path > result[k].path
 		}
-		return a.ModTime().After(b.ModTime())
+		return result[i].UpdatedAt.After(result[k].UpdatedAt)
 	})
 	return result, nil
 }
@@ -166,21 +185,9 @@ func (j *Journal) Record(index int, result RunResult) error {
 }
 
 func (j *Journal) save() error {
-	f, err := os.CreateTemp(filepath.Dir(j.path), ".batch-*.tmp")
+	data, err := json.Marshal(j)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(f.Name())
-	if err := json.NewEncoder(f).Encode(j); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(f.Name(), j.path)
+	return localfile.WriteAtomic(j.path, append(data, '\n'))
 }

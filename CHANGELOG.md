@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `--version` with commit and working-tree metadata; six native CI targets, PTY/ConPTY acceptance checks, vulnerability scans and verified snapshot archives.
+- Confined live Azure QA fixtures and a preflight helper for a private disposable project; real integration and assistive technology remain separate evidence gates.
 - Branch browser (`azpipe branches`, catalog `B`) with creator/name filters, repository selection, offline demo and guarded multi-delete. CLI `branches list` and preview-first `branches delete` share default-branch, policy, lock, active-PR and SHA checks.
 - Documented user-local installation, persistent PATH setup and offline verification.
 - Contextual action menu (`a` / `?`), focused footer, next-step guidance and review error recovery.
@@ -31,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--org`, `--project` global flags; `AZDO_PAT`/`AZDO_ORG` env var support
 
 ### Changed
+- Preview now reports per-pipeline progress, supports cancellation and enforces the shared 500-pipeline limit. Execution remains blocked until every preview succeeds.
+- Parameter errors focus the invalid field; F2 inspects complete choices without altering defaults. Search Esc retains the filter; saved batches show pipeline names, saved states and last-updated time.
+- Settings, profiles, journals and request bodies use private Unix permissions or Windows DACLs. Replacement writes preserve formats; atomic rename is guaranteed only on Unix.
 - Refined the TUI palette for light/dark terminals, with full-row focus, consistent tables and semantic RUN/PLAN/status colours. Active pipeline details now include folder and tags, while existing shortcuts and confirmation gates remain unchanged.
 - Demo GIF/MP4 and PNGs now render the model's ANSI colours instead of inferring row colours from text.
 - Every persisted `~/.config/azpipe/config.yaml` is written with `0600` permissions

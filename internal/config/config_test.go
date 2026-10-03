@@ -6,12 +6,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ineslino/azpipe/internal/localfile"
 	"github.com/spf13/viper"
 )
 
 func TestSetPAT_WritesConfigWithRestrictedPermissions(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
@@ -20,18 +22,19 @@ func TestSetPAT_WritesConfigWithRestrictedPermissions(t *testing.T) {
 	}
 
 	configPath := filepath.Join(home, configDir, configFile+"."+configType)
-	info, err := os.Stat(configPath)
+	_, err := os.Stat(configPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := info.Mode().Perm(); got != 0o600 {
-		t.Fatalf("mode=%o, want 600", got)
+	if err := localfile.Check(configPath); err != nil {
+		t.Fatal(err)
 	}
 }
 
 func TestSetAuthPersistsAdapterMetadataWithoutPAT(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
@@ -65,6 +68,7 @@ func TestSetDefaults_DoNotPersistEnvironmentPAT(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			home := t.TempDir()
 			t.Setenv("HOME", home)
+			t.Setenv("USERPROFILE", home)
 			t.Setenv("AZDO_PAT", "environment-secret")
 			viper.Reset()
 			t.Cleanup(viper.Reset)
@@ -88,6 +92,7 @@ func TestSetDefaults_DoNotPersistEnvironmentPAT(t *testing.T) {
 func TestSetOrg_PreservesPersistedPATInsteadOfEnvironmentPATAndRestrictsExistingFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("AZDO_PAT", "environment-secret")
 	dir := filepath.Join(home, configDir)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -115,11 +120,7 @@ func TestSetOrg_PreservesPersistedPATInsteadOfEnvironmentPATAndRestrictsExisting
 	if !strings.Contains(string(contents), "persisted-secret") || strings.Contains(string(contents), "environment-secret") {
 		t.Fatalf("persisted config used the wrong PAT:\n%s", contents)
 	}
-	info, err := os.Stat(path)
-	if err != nil {
+	if err := localfile.Check(path); err != nil {
 		t.Fatal(err)
-	}
-	if got := info.Mode().Perm(); got != 0o600 {
-		t.Fatalf("existing config mode=%o, want 600", got)
 	}
 }

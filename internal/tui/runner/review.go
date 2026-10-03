@@ -21,6 +21,13 @@ type previewFinishedMsg struct {
 	reviews []domainrunner.Review
 }
 
+type previewProgressMsg struct {
+	token  operationToken
+	index  int
+	review domainrunner.Review
+	next   <-chan tea.Msg
+}
+
 type queueConfirmedMsg struct {
 	token   operationToken
 	reviews []domainrunner.Review
@@ -36,6 +43,10 @@ type reviewModel struct {
 	height       int
 	width        int
 	horizontal   int
+	previewing   bool
+	cancelled    bool
+	organization string
+	project      string
 }
 
 func newReviewModel(selections []domainrunner.Selection, demo bool, token operationToken) reviewModel {
@@ -56,9 +67,18 @@ func newReviewModel(selections []domainrunner.Selection, demo bool, token operat
 	return reviewModel{reviews: reviews, confirmation: confirmation, demo: demo, token: token}
 }
 
-func previewSelections(service domainrunner.Service, selections []domainrunner.Selection, token operationToken) tea.Cmd {
+func previewSelections(ctx context.Context, service domainrunner.Service, selections []domainrunner.Selection, token operationToken) tea.Cmd {
 	return func() tea.Msg {
-		return previewFinishedMsg{token: token, reviews: service.PreviewAll(context.Background(), selections, 4)}
+		events := make(chan tea.Msg, len(selections)+1)
+		service.OnPreview = func(index int, review domainrunner.Review) {
+			events <- previewProgressMsg{token: token, index: index, review: review, next: events}
+		}
+		go func() {
+			reviews := service.PreviewAll(ctx, selections, 4)
+			events <- previewFinishedMsg{token: token, reviews: reviews}
+			close(events)
+		}()
+		return <-events
 	}
 }
 
@@ -113,7 +133,7 @@ func (m reviewModel) update(msg tea.Msg) (reviewModel, tea.Cmd) {
 }
 
 func (m reviewModel) canExecute() bool {
-	if m.demo || len(m.reviews) == 0 {
+	if m.demo || m.previewing || m.cancelled || len(m.reviews) == 0 {
 		return false
 	}
 	for _, review := range m.reviews {
@@ -207,6 +227,13 @@ func (m reviewModel) view() string {
 			request = r.Selection.Request()
 		}
 		detail := fmt.Sprintf("Modo: %s\nBranch: %s\nParâmetros enviados: %s\n\nSHA: %s\nDefinição: %d\nValores predefinidos: definidos pela pipeline", r.Selection.Mode, request.Branch, formatParameters(request.Parameters), request.Commit, request.DefinitionVersion)
+		if !m.demo {
+			project := r.Selection.Project()
+			if project == "" {
+				project = m.project
+			}
+			detail += "\nOrganização: " + m.organization + "\nProjecto: " + project
+		}
 		if r.Err != nil {
 			detail = "Bloqueio: " + r.Err.Error() + "\n" + detail
 		}
@@ -227,16 +254,25 @@ func (m reviewModel) view() string {
 	} else if m.canExecute() {
 		lines = append(lines, runStyle.Render(fmt.Sprintf("Vai lançar %s. Escreve EXECUTAR para confirmar.", quantity(len(m.reviews), "pipeline", "pipelines"))), m.confirmation.View())
 	} else {
-		if blocked > 0 {
+		if m.cancelled {
+			lines = append(lines, catalogWarningStyle.Render("Preview cancelada. Esc volta à lista; :q sai."))
+		} else if blocked > 0 && !m.previewing {
 			lines = append(lines, catalogWarningStyle.Render("Escolhe uma pipeline com erro. Enter volta à lista para corrigir."))
 		} else {
-			lines = append(lines, catalogDetailStyle.Render("A validar a selecção. Aguarda as previews; Esc permite voltar."))
+			lines = append(lines, catalogDetailStyle.Render(fmt.Sprintf("Previews: %d/%d concluídas · Esc ou :q cancela.", ready+blocked, len(m.reviews))))
 		}
 	}
 	if m.warning != "" {
 		lines = append(lines, catalogWarningStyle.Render(m.warning))
 	}
-	lines = append(lines, shortcutBar(width, "pgup/pgdown página", "esc voltar e editar", ":q sair"))
+	quit := ":q sair"
+	if m.previewing {
+		quit = ":q cancelar preview"
+	}
+	if m.confirmation.Focused() {
+		quit = "←/→ detalhe completo"
+	}
+	lines = append(lines, shortcutBar(width, "pgup/pgdown página", "esc voltar e editar", quit))
 	return strings.Join(lines, "\n")
 }
 

@@ -1,0 +1,21 @@
+trigger: none
+pr: none
+
+parameters:
+  - name: planOnly
+    displayName: Apenas plano
+    type: boolean
+    default: true
+
+pool:
+  vmImage: ubuntu-24.04
+
+jobs:
+  - job: fixture
+    timeoutInMinutes: 5
+    steps:
+      - checkout: none
+      - ${{ if eq(parameters.planOnly, true) }}:
+          - bash: echo 'PLAN: revisão sintética sem mutações externas'
+      - ${{ if eq(parameters.planOnly, false) }}:
+          - bash: echo 'RUN: execução sintética sem mutações externas'

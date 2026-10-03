@@ -81,6 +81,9 @@ func TestVisualFlowPreservesSelectionAcrossThemesAndResize(t *testing.T) {
 					t.Fatal("missing empty state")
 				}
 				m, _ = pressApp(t, m, "esc")
+				m, _ = pressApp(t, m, "/")
+				m, _ = pressApp(t, m, "ctrl+u")
+				m, _ = pressApp(t, m, "enter")
 				m, _ = pressApp(t, m, "a")
 				check("actions")
 				m, _ = pressApp(t, m, "esc")

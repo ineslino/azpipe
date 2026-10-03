@@ -6,3 +6,4 @@ dist/
 .env
 .claude-flow/
 .worktrees/
+__pycache__/

@@ -32,6 +32,15 @@ type SchemaProvider interface {
 	GetPipelineSchema(context.Context, string, int, string) (ParameterSchema, error)
 }
 
+// ParameterValidationError identifies the field without changing CLI diagnostics.
+type ParameterValidationError struct {
+	Parameter string
+	Err       error
+}
+
+func (e *ParameterValidationError) Error() string { return e.Err.Error() }
+func (e *ParameterValidationError) Unwrap() error { return e.Err }
+
 func ParseParameterSchema(content string) (ParameterSchema, error) {
 	var document struct {
 		Parameters yaml.Node `yaml:"parameters"`
@@ -87,7 +96,12 @@ func ParseParameterSchema(content string) (ParameterSchema, error) {
 func (p Parameter) Editable() bool {
 	return p.Type == "string" || p.Type == "boolean" || p.Type == "number"
 }
-func (p Parameter) Validate(value string) error {
+func (p Parameter) Validate(value string) (err error) {
+	defer func() {
+		if err != nil {
+			err = &ParameterValidationError{Parameter: p.Name, Err: err}
+		}
+	}()
 	if !p.Editable() {
 		return fmt.Errorf("%s: tipo %s não editável nesta TUI", p.Name, p.Type)
 	}
@@ -117,7 +131,7 @@ func (s ParameterSchema) Validate(values map[string]string) error {
 		value, sent := values[p.Name]
 		if !sent {
 			if !p.HasDefault {
-				return fmt.Errorf("parâmetro obrigatório por preencher: %s", p.Name)
+				return &ParameterValidationError{Parameter: p.Name, Err: fmt.Errorf("parâmetro obrigatório por preencher: %s", p.Name)}
 			}
 			continue
 		}
@@ -127,7 +141,7 @@ func (s ParameterSchema) Validate(values map[string]string) error {
 	}
 	for name := range values {
 		if !known[name] {
-			return fmt.Errorf("parâmetro não declarado: %s", name)
+			return &ParameterValidationError{Parameter: name, Err: fmt.Errorf("parâmetro não declarado: %s", name)}
 		}
 	}
 	return nil

@@ -23,6 +23,8 @@ type Service struct {
 	client   azdo.Client
 	project  string
 	OnResult func(int, RunResult) error
+	// OnPreview is called once per item, possibly concurrently. Review values are read-only.
+	OnPreview func(int, Review)
 }
 
 func NewService(client azdo.Client, project string) Service {
@@ -56,12 +58,18 @@ func (s Service) schema(ctx context.Context, project string, id int, branch stri
 // PreviewAll previews every selection and returns reviews in selection order.
 func (s Service) PreviewAll(ctx context.Context, selections []Selection, parallel int) []Review {
 	reviews := make([]Review, len(selections))
+	sizeErr := ValidateBatchSize(len(selections))
 	runParallel(len(selections), parallel, func(index int) {
 		selection := selections[index]
 		operationCtx, cancel := context.WithTimeout(ctx, operationTimeout)
 		project, projectErr := s.projectForPipeline(selection.Pipeline)
 		request := selection.Request()
 		err := projectErr
+		if sizeErr != nil {
+			err = sizeErr
+		} else if ctx.Err() != nil {
+			err = ctx.Err()
+		}
 		var schema *azdo.ParameterSchema
 		if err == nil {
 			if provider, ok := s.client.(azdo.SchemaProvider); ok {
@@ -93,6 +101,9 @@ func (s Service) PreviewAll(ctx context.Context, selections []Selection, paralle
 		if err != nil {
 			reviews[index].State = ReviewError
 		}
+		if s.OnPreview != nil {
+			s.OnPreview(index, reviews[index])
+		}
 	})
 	return reviews
 }
@@ -102,6 +113,9 @@ func (s Service) PreviewAll(ctx context.Context, selections []Selection, paralle
 func (s Service) QueueAll(ctx context.Context, reviews []Review, parallel int) ([]RunResult, error) {
 	if len(reviews) == 0 {
 		return nil, ErrPreviewIncomplete
+	}
+	if err := ValidateBatchSize(len(reviews)); err != nil {
+		return nil, err
 	}
 	for _, review := range reviews {
 		if review.State != ReviewReady || review.Err != nil {

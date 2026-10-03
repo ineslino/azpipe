@@ -155,8 +155,8 @@ that can queue a pipeline.
 
 ### Shortcuts
 
-Start with `a` or `?`: actions are grouped by selection, configuration, profiles/history
-and context. Arrows choose an action and Enter opens it. Disabled actions
+Start with `a` or `?`: actions are grouped by selection, active pipeline, batch,
+advanced input, profiles/history and context. Arrows choose an action and Enter opens it. Disabled actions
 explain why they are unavailable and cannot be activated. Esc closes the menu
 without changing the selection. Existing shortcuts remain available in the catalog;
 the contextual footer only shows the primary actions. On review errors, select the
@@ -178,7 +178,7 @@ folder, tags and PLAN availability; `d` opens the complete metadata when values 
 | `Space` | Select or remove the active pipeline |
 | `m` (`p` alias) | Toggle `RUN`/`PLAN` on an already selected pipeline with an explicit PLAN contract |
 | `P` / `R` | Apply PLAN / RUN to the whole selection; PLAN requires contracts for all selected pipelines |
-| `e` | Read the root YAML and open typed fields; Tab moves fields, arrows choose options, Ctrl+R restores the default, Ctrl+S saves, Esc discards |
+| `e` | Read the root YAML and open typed fields; Tab moves fields, arrows choose options, F2 inspects the complete choice list, Ctrl+R restores defaults, Ctrl+S applies only to the active pipeline, Esc discards |
 | `J` | Advanced JSON parameter editor |
 | `s` / `l` | Save the current selection as a profile / load a saved profile |
 | `h` | Browse previous batches in this context and resume monitoring without submitting runs |
@@ -247,6 +247,11 @@ templates, and does not support classic pipelines or non-Azure-Repos YAML source
 The advanced JSON editor does not bypass these checks. The mode parameter remains
 owned by the RUN/PLAN control rather than being edited twice.
 
+F2 opens choices without altering the current/default value. Esc leaves it untouched;
+Enter chooses an option. Invalid input focuses its field and PgUp/PgDn exposes the
+complete error. Catalog search follows the project selector: Esc retains the filter,
+Ctrl+U clears it while editing, and selected hidden rows stay selected.
+
 The underlying contract is documented in Microsoft's
 [runtime parameters](https://learn.microsoft.com/en-us/azure/devops/pipelines/process/runtime-parameters?view=azure-devops)
 and [Git Items API](https://learn.microsoft.com/en-us/rest/api/azure/devops/git/items/get?view=azure-devops-rest-7.1).
@@ -263,13 +268,16 @@ changed parameters are checked during the new preview.
 Profiles and batch journals use separate `profiles/` and `runs/` directories under
 `os.UserConfigDir()/azpipe` (on macOS, `~/Library/Application Support/azpipe`).
 Set `AZPIPE_DATA_DIR` to an absolute directory to relocate both. Files are created
-with mode 0600. Profiles contain parameter values in plaintext: never store secrets.
+with mode 0600 on Unix or a protected DACL on Windows. Profiles contain parameter
+values in plaintext: never store secrets.
 Profile branches are retained per pipeline, and all-project profiles also retain the
 owning project for each selection. Confirming a global branch edit with `b` and
 Enter replaces these per-pipeline branches and applies the global value to current
 and future selections. Esc cancels the edit and retains the profile branches.
 
-Press `h` to browse saved batches and resume one. The dashboard counts queued,
+Press `h` to browse saved batches and resume one. Rows show pipeline names, saved
+state counts and file modification time, sorted most recently updated first. `d`
+opens full batch details. These are last-saved states, not a live read. The dashboard counts queued,
 running, successful, failed and unknown-ID runs; accepted runs retain their URLs.
 Refreshes persist updated states. Esc returns to the catalog without cancelling
 remote runs; reopen the batch with `h`. Monitoring is active only for the open batch.
@@ -282,7 +290,11 @@ or calls Azure DevOps, and the example batch does not simulate live progress.
 ### Preview and execution safety
 
 Every selected pipeline uses the preview API, with at most four HTTP requests in
-parallel. For Azure Repos Git, the source SHA and definition revision are resolved
+parallel and a 500-pipeline limit shared by the TUI/CLI/service. Review reports
+completed previews incrementally; execution is disabled until the final result.
+Esc cancels preview and returns to the catalog; `:q` during preview cancels it first,
+preserving review, and a second `:q` exits. Late results are ignored.
+For Azure Repos Git, the source SHA and definition revision are resolved
 before preview and reused for queue. Review shows context, branch, SHA, definition
 revision, mode, sent parameters and preview result. Other repository types fail
 preparation. The expanded YAML hash is checked again before queue. This does not
@@ -331,10 +343,10 @@ Journal files contain run IDs, state and URLs, not credentials or template input
 ### Validation boundaries
 
 The offline demo exercises selection, filtering, parameter editing, modes and
-review. HTTP integration tests use local servers. Native Windows and WSL runtime
-are not established by cross-compilation; the CI matrix runs Go checks on Linux
-and macOS and cross-compiles Windows when published. The POSIX installer targets
-macOS/Linux/WSL.
+review. HTTP integration tests use local servers. The six native CI targets use
+Unix PTY or Windows ConPTY and verify archives/checksums. Live Azure integration,
+WSL and assistive technology require the separate checks in [qa.md](qa.md).
+The POSIX installer targets macOS/Linux/WSL.
 The optional `azdo-as` adapter keeps credentials inside the helper process. Set
 `AZPIPE_AZDO_AS` to its executable, `AZPIPE_AUTH_PROFILE` to the approved profile and
 `AZPIPE_EXPECTED_IDENTITY` to the expected account. Identity is checked before each
@@ -398,7 +410,7 @@ azpipe auth set --org myorg \
 
 Environment variables override the local settings. `azpipe auth set --pat <token>`
 remains available for backwards compatibility and stores a legacy PAT in
-`~/.config/azpipe/config.yaml`. The file is written with permissions `0600`; prefer
+`~/.config/azpipe/config.yaml`. The file uses `0600` on Unix or a protected Windows DACL; prefer
 `AZDO_PAT` or external credential injection.
 
 ### `projects`

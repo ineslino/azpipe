@@ -237,7 +237,7 @@ func (m reviewModel) view() string {
 		if m.cancelled {
 			footer = append(footer, catalogWarningStyle.Render("Preview cancelada. Esc volta à lista; :q sai."))
 		} else if blocked > 0 && !m.previewing {
-			footer = append(footer, catalogWarningStyle.Render("Escolhe uma pipeline com erro. Enter volta à lista para corrigir."))
+			footer = append(footer, catalogWarningStyle.Render("Escolhe o erro; Enter volta à lista para corrigir."))
 		} else {
 			footer = append(footer, catalogDetailStyle.Render(fmt.Sprintf("Previews: %d/%d concluídas · Esc ou :q cancela.", ready+blocked, len(m.reviews))))
 		}

@@ -14,19 +14,27 @@ import (
 
 type parameterField struct{ name, value textinput.Model }
 type parameterEditor struct {
-	rows          []parameterField
-	focus         int
-	warning       string
-	warningScroll int
-	optionsOpen   bool
-	optionCursor  int
-	optionScroll  int
-	schema        *azdo.ParameterSchema
-	useDefault    []bool
+	rows           []parameterField
+	focus          int
+	warning        string
+	warningScroll  int
+	optionsOpen    bool
+	optionSearch   textinput.Model
+	optionCursor   int
+	optionScroll   int
+	optionPageSize int
+	schema         *azdo.ParameterSchema
+	useDefault     []bool
 }
 
 func newSchemaEditor(schema azdo.ParameterSchema, values map[string]string, modeParameter string) (parameterEditor, error) {
 	e := parameterEditor{schema: &schema}
+	e.optionSearch = textinput.New()
+	e.optionSearch.Prompt = "Procurar: "
+	e.optionSearch.Placeholder = "valor completo · / editar"
+	e.optionSearch.PromptStyle = keyStyle
+	e.optionSearch.TextStyle, e.optionSearch.PlaceholderStyle = catalogTextStyle, catalogDetailStyle
+	e.optionSearch.CharLimit = 4096
 	filtered := []azdo.Parameter{}
 	known := map[string]bool{}
 	for _, p := range schema.Parameters {
@@ -98,29 +106,10 @@ func (e *parameterEditor) focusField() {
 }
 
 func (e *parameterEditor) update(msg tea.Msg) tea.Cmd {
+	if e.optionsOpen {
+		return e.updateOptions(msg)
+	}
 	if key, ok := msg.(tea.KeyMsg); ok {
-		if e.optionsOpen {
-			options := e.options(e.focus / 2)
-			switch key.String() {
-			case "esc", "f2":
-				e.optionsOpen = false
-			case "up":
-				e.optionCursor = max(0, e.optionCursor-1)
-				e.optionScroll = 0
-			case "down":
-				e.optionCursor = min(len(options)-1, e.optionCursor+1)
-				e.optionScroll = 0
-			case "pgup":
-				e.optionScroll = max(0, e.optionScroll-1)
-			case "pgdown":
-				e.optionScroll++
-			case "enter":
-				e.rows[e.focus/2].value.SetValue(options[e.optionCursor])
-				e.useDefault[e.focus/2] = false
-				e.optionsOpen = false
-			}
-			return nil
-		}
 		if key.String() == "pgdown" || key.String() == "pgup" {
 			if key.String() == "pgdown" {
 				e.warningScroll++
@@ -134,6 +123,8 @@ func (e *parameterEditor) update(msg tea.Msg) tea.Cmd {
 			if len(options) > 0 {
 				e.optionsOpen, e.optionCursor = true, 0
 				e.optionScroll = 0
+				e.optionSearch.SetValue("")
+				e.optionSearch.Blur()
 				for i, value := range options {
 					if value == e.rows[e.focus/2].value.Value() {
 						e.optionCursor = i
@@ -231,6 +222,90 @@ func (e *parameterEditor) update(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
+func (e *parameterEditor) updateOptions(msg tea.Msg) tea.Cmd {
+	key, isKey := msg.(tea.KeyMsg)
+	if e.optionSearch.Focused() {
+		if isKey && (key.String() == "esc" || key.String() == "enter") {
+			e.optionSearch.Blur()
+			return nil
+		}
+		before := e.optionSearch.Value()
+		var cmd tea.Cmd
+		if isKey && key.String() == "ctrl+u" {
+			e.optionSearch.SetValue("")
+		} else {
+			e.optionSearch, cmd = e.optionSearch.Update(msg)
+		}
+		if before != e.optionSearch.Value() {
+			e.optionCursor, e.optionScroll = 0, 0
+		}
+		return cmd
+	}
+	if !isKey {
+		return nil
+	}
+	// A pasted /query follows the same search path as individual keystrokes.
+	if key.Type == tea.KeyRunes && !key.Alt && len(key.Runes) > 1 && key.Runes[0] == '/' {
+		focus := e.optionSearch.Focus()
+		key.Runes = key.Runes[1:]
+		return tea.Batch(focus, e.updateOptions(key))
+	}
+	options := e.filteredOptions()
+	switch key.String() {
+	case "esc", "f2":
+		e.optionsOpen = false
+	case "/":
+		return e.optionSearch.Focus()
+	case "ctrl+u":
+		e.optionSearch.SetValue("")
+		e.optionCursor, e.optionScroll = 0, 0
+	case "up", "ctrl+pgup":
+		step := 1
+		if key.String() == "ctrl+pgup" {
+			step = max(1, e.optionPageSize)
+		}
+		e.optionCursor = max(0, e.optionCursor-step)
+		e.optionScroll = 0
+	case "down", "ctrl+pgdown":
+		step := 1
+		if key.String() == "ctrl+pgdown" {
+			step = max(1, e.optionPageSize)
+		}
+		e.optionCursor = min(max(0, len(options)-1), e.optionCursor+step)
+		e.optionScroll = 0
+	case "home":
+		e.optionCursor, e.optionScroll = 0, 0
+	case "end":
+		e.optionCursor, e.optionScroll = max(0, len(options)-1), 0
+	case "pgup":
+		e.optionScroll = max(0, e.optionScroll-1)
+	case "pgdown":
+		e.optionScroll++
+	case "enter":
+		if len(options) > 0 {
+			e.rows[e.focus/2].value.SetValue(options[e.optionCursor])
+			e.useDefault[e.focus/2] = false
+			e.optionsOpen = false
+		}
+	}
+	return nil
+}
+
+func (e parameterEditor) filteredOptions() []string {
+	options := e.options(e.focus / 2)
+	query := strings.ToLower(strings.TrimSpace(e.optionSearch.Value()))
+	if query == "" {
+		return options
+	}
+	filtered := make([]string, 0, len(options))
+	for _, value := range options {
+		if strings.Contains(strings.ToLower(value), query) {
+			filtered = append(filtered, value)
+		}
+	}
+	return filtered
+}
+
 func (e parameterEditor) options(i int) []string {
 	if e.schema == nil || !e.schema.Parameters[i].Editable() {
 		return nil
@@ -306,11 +381,8 @@ func (e parameterEditor) view(width, height int, name string) string {
 
 func (e parameterEditor) schemaView(width, height int, name string) string {
 	if e.optionsOpen {
-		options := e.options(e.focus / 2)
-		lines := []string{catalogTitleStyle.Render(truncateWidth("Opções · "+e.schema.Parameters[e.focus/2].DisplayName, width)), catalogDetailStyle.Render(fmt.Sprintf("Opção %d de %d", e.optionCursor+1, len(options))), "Enter escolhe; Esc conserva o valor actual.", ""}
-		footer := []string{"", catalogHeaderStyle.Render("Valor completo da opção focada:"), catalogTextStyle.Render(textPage(options[e.optionCursor], width, e.optionScroll, 3)), "", shortcutBar(width, "↑/↓ escolher", "PgUp/PgDn detalhe", "enter aplicar opção", "esc voltar")}
-		// Reserve the actual wrapped detail and shortcuts before sizing the list.
-		count := max(1, height-lipgloss.Height(strings.Join(lines, "\n"))-lipgloss.Height(strings.Join(footer, "\n")))
+		options := e.filteredOptions()
+		lines, footer, count := e.optionsLayout(width, height, options)
 		start := max(0, e.optionCursor-count+1)
 		for i := start; i < min(len(options), start+count); i++ {
 			style, marker := catalogTextStyle, "  "
@@ -381,4 +453,38 @@ func (e parameterEditor) schemaView(width, height int, name string) string {
 	}
 	lines = append(lines, "", shortcutBar(width, "tab próximo", "←/→ escolher opção", "f2 opções e detalhe", "ctrl+r repor predefinido", "ctrl+s aplicar", "esc descartar"))
 	return strings.Join(lines, "\n")
+}
+
+func (e parameterEditor) optionsLayout(width, height int, options []string) ([]string, []string, int) {
+	position := fmt.Sprintf("Opção %d de %d", min(e.optionCursor+1, len(options)), len(options))
+	if len(options) == 0 {
+		position = "0 opções encontradas"
+	}
+	if len(options) != len(e.options(e.focus/2)) {
+		position += fmt.Sprintf(" · %d no total", len(e.options(e.focus/2)))
+	}
+	e.optionSearch.Width = max(1, width-lipgloss.Width(e.optionSearch.Prompt)-1)
+	instruction := "Enter escolhe; Esc conserva o valor actual."
+	if len(options) == 0 {
+		instruction = "Altera a pesquisa; Ctrl+U limpa o filtro."
+	}
+	if e.optionSearch.Focused() {
+		instruction = "Enter/Esc termina a pesquisa; o filtro mantém-se."
+	}
+	lines := []string{catalogTitleStyle.Render(truncateWidth("Opções · "+e.schema.Parameters[e.focus/2].DisplayName, width)), catalogDetailStyle.Render(position), e.optionSearch.View(), instruction, ""}
+	shortcuts := shortcutBar(width, "↑/↓ escolher", "home/end extremos", "/ procurar", "Ctrl+PgUp/PgDn página", "PgUp/PgDn detalhe", "enter aplicar opção", "esc voltar")
+	footer := []string{""}
+	if len(options) > 0 {
+		footer = append(footer, catalogHeaderStyle.Render("Valor completo da opção focada:"), catalogTextStyle.Render(textPage(options[e.optionCursor], width, e.optionScroll, 3)))
+	} else {
+		footer = append(footer, catalogWarningStyle.Render("Nenhuma opção encontrada."), "Ctrl+U limpa a pesquisa; / permite editá-la.")
+		shortcuts = shortcutBar(width, "/ procurar", "ctrl+u limpar", "esc voltar")
+	}
+	if e.optionSearch.Focused() {
+		shortcuts = shortcutBar(width, "enter/esc terminar pesquisa", "ctrl+u limpar")
+	}
+	footer = append(footer, "", shortcuts)
+	// Use the same measured capacity for rendering and page navigation.
+	count := max(1, height-lipgloss.Height(strings.Join(lines, "\n"))-lipgloss.Height(strings.Join(footer, "\n")))
+	return lines, footer, count
 }

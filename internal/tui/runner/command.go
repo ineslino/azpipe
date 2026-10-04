@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type commandAction int
@@ -83,9 +84,16 @@ func (m commandModel) view(width int) string {
 	if !m.active {
 		return ""
 	}
-	value := m.input.View()
+	width = max(1, width-4)
+	diagnostic := ""
 	if m.err != "" {
-		value += " · " + catalogWarningStyle.Render(m.err)
+		diagnostic = " · " + catalogWarningStyle.Render(m.err)
 	}
-	return truncateWidth("Comando "+value, max(1, width-4))
+	inputWidth := max(1, width-lipgloss.Width("Comando "+diagnostic))
+	m.input.Width = max(1, inputWidth-lipgloss.Width(m.input.Prompt)-1)
+	// Recalculate the viewport at this width while retaining the editing cursor.
+	position := m.input.Position()
+	m.input.CursorEnd()
+	m.input.SetCursor(position)
+	return truncateWidth("Comando "+truncateWidth(m.input.View(), inputWidth)+diagnostic, width)
 }

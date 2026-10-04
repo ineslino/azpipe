@@ -50,6 +50,19 @@ on Enter; Esc from the list retains the original/default value. In catalog help,
 `A` names the visible scope and 500-pipeline limit. At 60 columns, blocked-review
 recovery must retain the complete instruction and return to the affected pipeline.
 
+For command recovery, enter `:not-a-command` in the welcome screen, catalog,
+history, review, monitoring and branch browser. The complete message
+`Comando desconhecido. Usa :q para sair.` must remain visible at 60×24, 80×24 and
+120×40, including with a long command and after resize. Move the cursor within
+the retained input; End followed by Ctrl+U clears it. Esc closes only the command bar and preserves
+the underlying selection, screen and pending operation.
+
+For reduced-colour terminals, use `TERM=xterm` with `COLORTERM` unset. Inspect
+catalog, review and monitoring on light/dark backgrounds. Secondary text and RUN
+labels must remain readable with the 16-colour palette; explicit fallback values
+must preserve the existing 256-colour palette and `NO_COLOR` behaviour. Contrast
+depends on the terminal's configured palette; record that palette with captures.
+
 Measure the branch render path independently of network requests with:
 
 ```bash

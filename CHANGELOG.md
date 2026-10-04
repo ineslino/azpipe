@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--org`, `--project` global flags; `AZDO_PAT`/`AZDO_ORG` env var support
 
 ### Changed
+- Command errors retain their full recovery instruction in compact terminals, reserving space before the input; Escape preserves the underlying screen and preparation.
+- Explicit 16-colour neutral/RUN fallbacks improve contrast on light/dark backgrounds while retaining the existing 256-colour palette and plain mode.
 - Catalog action help exposes `A` to select visible pipelines within the existing batch limit; blocked-review recovery uses a complete instruction at 60 columns.
 - Escape closes only the command bar, preserving the underlying screen and pending read; a second Escape keeps the existing navigation or cancellation action.
 - Full-screen frames retain their height when command overlays close, preventing the terminal renderer from erasing an unchanged bottom border.

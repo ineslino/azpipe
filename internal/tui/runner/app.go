@@ -145,7 +145,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch action {
 			case commandQuit:
 				if m.screen == ScreenExecution && !m.execution.queued {
-					m.command.err = "Ainda a submeter; aguarda a confirmação do lote."
+					m.command.err = "A submeter. Aguarda a confirmação do lote."
 					return m, nil
 				}
 				if m.screen == ScreenReview && m.review.previewing {

@@ -295,7 +295,7 @@ func TestPrioritiesGroupedLayoutsAcrossThemes(t *testing.T) {
 				index := i
 				app.actions = &index
 				check(app.View())
-				if !strings.Contains(ansi.Strip(app.View()), fmt.Sprintf("%d/14", i+1)) {
+				if !strings.Contains(ansi.Strip(app.View()), fmt.Sprintf("%d/%d", i+1, len(app.catalogActions()))) {
 					t.Fatal("active action counter missing")
 				}
 			}
@@ -348,7 +348,7 @@ func TestPrioritiesActionGroupsRemainNavigable(t *testing.T) {
 			t.Fatalf("missing real group heading %q", group)
 		}
 	}
-	for range 13 {
+	for range len(m.catalogActions()) - 1 {
 		m, _ = pressApp(t, m, "down")
 	}
 	m, _ = pressApp(t, m, "enter")

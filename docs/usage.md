@@ -167,8 +167,9 @@ The catalog keeps a compact AZPIPE identity and workflow indicator, preserving r
 for pipelines even at 80×24. Table headers, full-row focus and contextual shortcuts
 share the same styling across selection, review, monitoring and branch management.
 RUN/PLAN and result colours complement text labels; `>` and `[x]` distinguish focus
-from selection without colour. Colours adapt to light/dark terminal backgrounds,
-and `NO_COLOR` disables the palette. The active pipeline detail includes repository,
+from selection without colour. Colours adapt to light/dark terminal backgrounds;
+16-colour terminals use explicit readable neutral/RUN colours, and `NO_COLOR`
+disables the palette. The active pipeline detail includes repository,
 folder, tags and PLAN availability; `d` opens the complete metadata when values are clipped.
 
 | Key | Action |
@@ -263,6 +264,8 @@ rendered detail and shortcuts at 60×24, 80×24 and 120×40, including after res
 With the command bar open, Esc closes that bar only. History, branch review and
 pending reads remain active; another Esc applies the screen's usual return or
 cancellation action.
+Invalid commands retain their input and show the complete recovery instruction;
+the input viewport yields space to the diagnostic in compact terminals.
 
 Simple type labels in the Portuguese form use `texto` and `número`; the underlying
 YAML types remain `string` and `number`. Catalog search uses the shared adaptive

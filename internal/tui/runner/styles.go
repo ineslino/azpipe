@@ -17,10 +17,14 @@ func quantity(n int, singular, plural string) string {
 
 var (
 	// Keep the lime/cyan identity; use adaptive neutrals for terminal backgrounds.
-	accentColor         = lipgloss.AdaptiveColor{Light: "22", Dark: "190"}
-	focusColor          = lipgloss.AdaptiveColor{Light: "25", Dark: "81"}
-	textColor           = lipgloss.AdaptiveColor{Light: "235", Dark: "254"}
-	mutedColor          = lipgloss.AdaptiveColor{Light: "241", Dark: "246"}
+	accentColor = lipgloss.AdaptiveColor{Light: "22", Dark: "190"}
+	focusColor  = lipgloss.AdaptiveColor{Light: "25", Dark: "81"}
+	textColor   = lipgloss.AdaptiveColor{Light: "235", Dark: "254"}
+	// Explicit ANSI16 neutrals keep secondary text readable on either background.
+	mutedColor = lipgloss.CompleteAdaptiveColor{
+		Light: lipgloss.CompleteColor{TrueColor: "#626262", ANSI256: "241", ANSI: "0"},
+		Dark:  lipgloss.CompleteColor{TrueColor: "#949494", ANSI256: "246", ANSI: "7"},
+	}
 	surfaceColor        = lipgloss.AdaptiveColor{Light: "254", Dark: "235"}
 	catalogTextStyle    = lipgloss.NewStyle().Foreground(textColor)
 	catalogTitleStyle   = catalogTextStyle.Bold(true)
@@ -31,15 +35,18 @@ var (
 	catalogFooterStyle  = catalogDetailStyle
 	planStyle           = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "91", Dark: "183"})
 	successStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "22", Dark: "84"})
-	runStyle            = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "94", Dark: "221"})
-	brandStyle          = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("234")).Background(lipgloss.Color("81")).Padding(0, 1)
-	keyStyle            = lipgloss.NewStyle().Bold(true).Foreground(focusColor)
-	shortcutKeyStyle    = keyStyle.Background(surfaceColor)
-	borderStyle         = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "245", Dark: "240"})
-	stripeStyle         = catalogTextStyle.Background(lipgloss.AdaptiveColor{Light: "255", Dark: "234"})
-	wordmarkStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("232")).Background(lipgloss.Color("190")).Padding(0, 2)
-	brandLimeStyle      = lipgloss.NewStyle().Bold(true).Foreground(accentColor)
-	brandWhiteStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "232", Dark: "231"})
+	runStyle            = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.CompleteAdaptiveColor{
+		Light: lipgloss.CompleteColor{TrueColor: "#875f00", ANSI256: "94", ANSI: "0"},
+		Dark:  lipgloss.CompleteColor{TrueColor: "#ffd75f", ANSI256: "221", ANSI: "11"},
+	})
+	brandStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("234")).Background(lipgloss.Color("81")).Padding(0, 1)
+	keyStyle         = lipgloss.NewStyle().Bold(true).Foreground(focusColor)
+	shortcutKeyStyle = keyStyle.Background(surfaceColor)
+	borderStyle      = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "245", Dark: "240"})
+	stripeStyle      = catalogTextStyle.Background(lipgloss.AdaptiveColor{Light: "255", Dark: "234"})
+	wordmarkStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("232")).Background(lipgloss.Color("190")).Padding(0, 2)
+	brandLimeStyle   = lipgloss.NewStyle().Bold(true).Foreground(accentColor)
+	brandWhiteStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "232", Dark: "231"})
 )
 
 // A connected-node signature doubles as a location indicator, not run progress.

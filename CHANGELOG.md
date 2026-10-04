@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Search complete F2 choice values with `/`, jump to the first/last match with Home/End and page the list with Ctrl+PgUp/PgDn; PgUp/PgDn retains focused-value inspection.
 - Full focused-value detail in F2 parameter choices, with PgUp/PgDn inspection before selection and a regression for long identical prefixes.
 - `--version` with commit and working-tree metadata; six native CI targets, PTY/ConPTY acceptance checks, vulnerability scans and verified snapshot archives.
 - Confined live Azure QA fixtures and a preflight helper for a private disposable project; real integration and assistive technology remain separate evidence gates.
@@ -34,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--org`, `--project` global flags; `AZDO_PAT`/`AZDO_ORG` env var support
 
 ### Changed
+- Catalog action help exposes `A` to select visible pipelines within the existing batch limit; blocked-review recovery uses a complete instruction at 60 columns.
 - Escape closes only the command bar, preserving the underlying screen and pending read; a second Escape keeps the existing navigation or cancellation action.
 - Full-screen frames retain their height when command overlays close, preventing the terminal renderer from erasing an unchanged bottom border.
 - Parameter choices show their position and size the list from the rendered detail and shortcuts, retaining branding and controls with long values in compact terminals.

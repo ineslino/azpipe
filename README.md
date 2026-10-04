@@ -93,7 +93,7 @@ Usa `AZDO_PAT` injectado pelo teu mecanismo de credenciais e `AZDO_ORG` para o c
 | `/` / espaço | Filtrar / seleccionar; Esc conserva o filtro e Ctrl+U limpa durante a pesquisa |
 | `d` | Detalhe completo da pipeline; setas percorrem e Esc regressa |
 | `m` / `P` / `R` | Alternar modo / PLAN para selecção / RUN para selecção |
-| `e` / `b` | Parâmetros tipados / branch; F2 consulta opções paginadas, posição e valor completo sem o alterar |
+| `e` / `b` | Parâmetros tipados / branch; em F2, `/` pesquisa, Home/End vai aos extremos e Ctrl+PgUp/PgDn muda de página; PgUp/PgDn lê o valor completo |
 | `s` / `l` / `h` | Guardar perfil / carregar perfil / histórico |
 | `c` | Mudar o projecto ou voltar a **Todos os projectos** |
 | `B` | Abrir a gestão de branches do projecto e repositório seleccionados |

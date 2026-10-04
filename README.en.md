@@ -91,7 +91,7 @@ Use `AZDO_PAT` injected by your credential mechanism and `AZDO_ORG` for context,
 | Arrows / `j` / `k` | Navigate |
 | `/` / Space | Filter / select; Esc retains the filter and Ctrl+U clears it while searching |
 | `m` / `P` / `R` | Toggle mode / PLAN for selection / RUN for selection |
-| `e` / `b` | Typed parameters / branch; F2 shows paged choices, position and complete value without changing it |
+| `e` / `b` | Typed parameters / branch; in F2, `/` searches, Home/End jumps to the ends and Ctrl+PgUp/PgDn pages the list; PgUp/PgDn inspects the complete value |
 | `s` / `l` / `h` | Save profile / load profile / history |
 | `c` | Change project or return to **All projects** |
 | `B` | Open branch management for the selected project and repository |

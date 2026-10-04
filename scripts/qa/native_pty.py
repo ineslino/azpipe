@@ -152,7 +152,7 @@ def catalog_flow(t):
     t.send("\x15\r")
     t.send("a")
     t.capture("menu-top", ("SELECCIONAR",))
-    t.send("\x1b[B" * 13)
+    t.send("\x1b[B" * 14)
     t.capture("menu-bottom", ("Gerir branches",))
     t.send("e", .4)
     t.capture("parameters", ("Ambiente", "Campo 1 de 3", "Ctrl+S aplica apenas", "Opções:"))

@@ -41,6 +41,15 @@ cover 9, 12 and 50 long values at all three sizes in dark/light/plain model rend
 PTY flows inspect the first and last choices, retain defaults on Esc and resize
 without clipping the brand or shortcuts. Branch model checks cover 1,000 and 10,000
 rows, the last page, hidden selection and remote/local/worktree name aliases.
+
+For F2 navigation, open a field with many allowed values, search a distinct suffix
+with `/`, finish editing with Enter/Esc and inspect the matching complete value.
+Clear with Ctrl+U, use Home/End and Ctrl+PgUp/PgDn to traverse the list, and retain
+PgUp/PgDn for detail inspection. A no-results query must leave the parameter intact
+on Enter; Esc from the list retains the original/default value. In catalog help,
+`A` names the visible scope and 500-pipeline limit. At 60 columns, blocked-review
+recovery must retain the complete instruction and return to the affected pipeline.
+
 Measure the branch render path independently of network requests with:
 
 ```bash

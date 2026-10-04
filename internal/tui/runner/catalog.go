@@ -293,6 +293,8 @@ func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m CatalogModel) updateInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.input == inputParameterForm {
 		if m.editor.optionsOpen {
+			m.editor.optionSearch.Width = max(1, m.width-4-lipgloss.Width(m.editor.optionSearch.Prompt)-1)
+			_, _, m.editor.optionPageSize = m.editor.optionsLayout(max(1, m.width-4), max(1, m.height-2), m.editor.filteredOptions())
 			return m, m.editor.update(msg)
 		}
 		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "ctrl+s" {

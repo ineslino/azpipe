@@ -176,6 +176,7 @@ folder, tags and PLAN availability; `d` opens the complete metadata when values 
 | `j`/`k` or arrows | Move through the catalog |
 | `/` | Search names/IDs in the project selector; filter pipelines by project, name, ID, folder, type, repository, or tag |
 | `Space` | Select or remove the active pipeline |
+| `A` | Add all visible pipelines to the selection, retaining existing modes; maximum 500 pipelines per batch |
 | `m` (`p` alias) | Toggle `RUN`/`PLAN` on an already selected pipeline with an explicit PLAN contract |
 | `P` / `R` | Apply PLAN / RUN to the whole selection; PLAN requires contracts for all selected pipelines |
 | `e` | Read the root YAML and open typed fields; Tab moves fields, arrows choose options, F2 inspects the complete choice list, Ctrl+R restores defaults, Ctrl+S applies only to the active pipeline, Esc discards |
@@ -247,9 +248,13 @@ templates, and does not support classic pipelines or non-Azure-Repos YAML source
 The advanced JSON editor does not bypass these checks. The mode parameter remains
 owned by the RUN/PLAN control rather than being edited twice.
 
-F2 opens choices without altering the current/default value. PgUp/PgDn scrolls the
-complete focused value, including suffixes hidden by the list width. Esc leaves the
-value untouched; Enter chooses an option. Invalid input focuses its field and PgUp/PgDn exposes the
+F2 opens choices without altering the current/default value. `/` searches the full
+values without case sensitivity, including suffixes hidden by the list width.
+Enter or Esc finishes search editing and retains its filter; Ctrl+U clears it.
+With search editing closed, Home/End moves to the first/last matching option and
+Ctrl+PgUp/PgDn moves by the visible list capacity. PgUp/PgDn continues to scroll the
+complete focused value. Enter chooses the complete option; Esc leaves the value
+untouched. No-results search cannot apply a value. Invalid input focuses its field and PgUp/PgDn exposes the
 complete error. Catalog search follows the project selector: Esc retains the filter,
 Ctrl+U clears it while editing, and selected hidden rows stay selected.
 

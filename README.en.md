@@ -89,6 +89,7 @@ Use `AZDO_PAT` injected by your credential mechanism and `AZDO_ORG` for context,
 | `a` / `?` | Actions and help menu, with descriptions and reasons for unavailable options |
 | `A` | Select all visible pipelines |
 | Arrows / `j` / `k` | Navigate |
+| `PgUp` / `PgDn` / `Home` / `End` | Page / jump to the ends of the filtered catalog, outside field editing |
 | `/` / Space | Filter / select; Esc retains the filter and Ctrl+U clears it while searching |
 | `m` / `P` / `R` | Toggle mode / PLAN for selection / RUN for selection |
 | `e` / `b` | Typed parameters / branch; in F2, `/` searches, Home/End jumps to the ends and Ctrl+PgUp/PgDn pages the list; PgUp/PgDn inspects the complete value |

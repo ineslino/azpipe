@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Catalog PgUp/PgDn paging and Home/End navigation across filtered results, retaining preparation and field editing; offline model and native PTY regressions cover large catalogs, resize and empty results.
 - Search complete F2 choice values with `/`, jump to the first/last match with Home/End and page the list with Ctrl+PgUp/PgDn; PgUp/PgDn retains focused-value inspection.
 - Full focused-value detail in F2 parameter choices, with PgUp/PgDn inspection before selection and a regression for long identical prefixes.
 - `--version` with commit and working-tree metadata; six native CI targets, PTY/ConPTY acceptance checks, vulnerability scans and verified snapshot archives.

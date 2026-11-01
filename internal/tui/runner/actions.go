@@ -62,7 +62,7 @@ func (m AppModel) catalogActions() []catalogAction {
 	}
 	return []catalogAction{
 		{"Rever selecção", "enter", "Valida branch e parâmetros. Ainda não lança runs.", selection},
-		{"Procurar pipelines", "/", "Filtra por projecto, nome, ID, tipo, pasta, repositório ou tag. Ctrl+U limpa; Esc mantém o filtro.", ""},
+		{"Procurar pipelines", "/", "Filtra por projecto, nome, ID, tipo, pasta, repositório ou tag. Ctrl+U limpa; Esc mantém o filtro. Fora da pesquisa: PgUp/PgDn muda de página; Home/End vai aos extremos.", ""},
 		{"Seleccionar todas as pipelines visíveis", "A", "Acrescenta as pipelines visíveis à selecção, sem alterar os modos existentes. Limite: 500 pipelines por lote.", activeReason},
 		{"Limpar selecções ocultas", "x", "Remove apenas selecções que a pesquisa actual esconde.", selection},
 		{"Configurar parâmetros da pipeline activa", "e", truncateWidth(pipeline.Name, max(12, m.width-40)) + ": abre campos tipados do YAML.", activeReason},

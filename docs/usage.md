@@ -175,6 +175,7 @@ folder, tags and PLAN availability; `d` opens the complete metadata when values 
 | Key | Action |
 |-----|--------|
 | `j`/`k` or arrows | Move through the catalog |
+| `PgUp` / `PgDn`; `Home` / `End` | Move one displayed page; jump to the first/last filtered pipeline, outside field editing |
 | `/` | Search names/IDs in the project selector; filter pipelines by project, name, ID, folder, type, repository, or tag |
 | `Space` | Select or remove the active pipeline |
 | `A` | Add all visible pipelines to the selection, retaining existing modes; maximum 500 pipelines per batch |
@@ -194,6 +195,12 @@ folder, tags and PLAN availability; `d` opens the complete metadata when values 
 | `Esc` | Finish project search, cancel context reads, leave the current input or return to the catalog without losing the selection |
 | `:q` / `:quit` | Exit explicitly; plain `q` is not an exit shortcut |
 | `Ctrl+C`, `Ctrl+D` | Emergency exit without creating a run before confirmation |
+
+Catalog paging uses the displayed row capacity, including after resize. Navigation
+keeps selections (including hidden ones), modes, branches and parameter overrides;
+it never selects a pipeline or opens review. Search and other fields retain their
+own editing keys. With no search results, navigation stays on the empty list.
+The search action in `a` / `?` also explains these navigation keys.
 
 Branch management uses the same explicit command parser, including burst input and
 paste. While a branch operation is busy, `:q` requests cancellation and waits for

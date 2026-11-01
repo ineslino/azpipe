@@ -42,6 +42,13 @@ PTY flows inspect the first and last choices, retain defaults on Esc and resize
 without clipping the brand or shortcuts. Branch model checks cover 1,000 and 10,000
 rows, the last page, hidden selection and remote/local/worktree name aliases.
 
+Catalog navigation regressions use 1,000 fictional pipelines at 60×24, 80×24 and
+120×40. PgUp/PgDn must move by the displayed row capacity; Home/End must use the
+filtered results. Check boundaries, no results, resize, retained preparation and
+input editing. Native `catalog-navigation-*` PTY scenarios use a read-only adapter
+with 500 fictional pipelines, preserving a selection through paging, filtering,
+resize and clearing a no-results search. No preview or queue request is made.
+
 For F2 navigation, open a field with many allowed values, search a distinct suffix
 with `/`, finish editing with Enter/Esc and inspect the matching complete value.
 Clear with Ctrl+U, use Home/End and Ctrl+PgUp/PgDn to traverse the list, and retain

@@ -538,8 +538,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		before, hadPipeline := m.catalog.active()
-		updated, cmd := m.catalog.Update(msg)
+		catalog, _ := m.catalogLayout()
+		updated, cmd := catalog.Update(msg)
+		height := m.catalog.height
 		m.catalog = updated.(CatalogModel)
+		m.catalog.height = height
 		if m.schemaCancel != nil {
 			after, hasPipeline := m.catalog.active()
 			if m.catalog.input != inputNone || m.catalog.showDetails || hadPipeline != hasPipeline || before.ID != after.ID || before.Project != after.Project {
@@ -660,14 +663,10 @@ func (m AppModel) View() string {
 			}
 			view = context.view()
 		case ScreenCatalog:
-			catalog := m.catalog
-			if m.command.active {
-				catalog.height--
-			}
+			catalog, banner := m.catalogLayout()
 			header := m.contextHeader()
-			if m.height >= 36 && m.width >= 60 && !catalog.showDetails && catalog.input == inputNone {
+			if banner {
 				header = welcomeBrand() + "\n" + header
-				catalog.height -= 10
 			}
 			view = header + catalog.View()
 		case ScreenReview:
@@ -684,6 +683,19 @@ func (m AppModel) View() string {
 		return terminalView(view, m.height)
 	}
 	return terminalView(view+"\n"+m.command.view(m.width), m.height)
+}
+
+// Share the rendered height with input handling so paging cannot skip visible rows.
+func (m AppModel) catalogLayout() (CatalogModel, bool) {
+	catalog := m.catalog
+	if m.command.active {
+		catalog.height--
+	}
+	banner := m.height >= 36 && m.width >= 60 && !catalog.showDetails && catalog.input == inputNone
+	if banner {
+		catalog.height -= 10
+	}
+	return catalog, banner
 }
 
 func (m AppModel) contextHeader() string {

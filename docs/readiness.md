@@ -9,7 +9,7 @@ A passing build or cross compilation does not establish the other layers.
 The [acceptance guide](qa.md) defines repeatable checks and the remaining manual gates.
 CI has six native jobs: Linux, macOS and Windows, each amd64/arm64. Jobs exercise PTY
 or ConPTY, build metadata, private-file protection and archive extraction/checksums.
-Go 1.27.1 is the validation toolchain; the project minimum remains Go 1.26.3.
+Go 1.27.3 is the validation toolchain; the project minimum remains Go 1.26.3.
 Race is required on five targets and N/A on Windows ARM64, which Go does not support.
 
 ```bash

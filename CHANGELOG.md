@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--org`, `--project` global flags; `AZDO_PAT`/`AZDO_ORG` env var support
 
 ### Changed
+- CI native checks, vulnerability scanning and snapshot packaging use Go 1.27.3 to include the standard-library security fixes.
 - Command errors retain their full recovery instruction in compact terminals, reserving space before the input; Escape preserves the underlying screen and preparation.
 - Explicit 16-colour neutral/RUN fallbacks improve contrast on light/dark backgrounds while retaining the existing 256-colour palette and plain mode.
 - Catalog action help exposes `A` to select visible pipelines within the existing batch limit; blocked-review recovery uses a complete instruction at 60 columns.

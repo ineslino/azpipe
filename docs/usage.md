@@ -474,6 +474,11 @@ azpipe pipelines watch   <pipeline-id>  --org <org> --project PROJECT [--interva
 | `analyze`   | Total runs, avg duration, failure %, top failing stage, flaky stages |
 | `watch`     | Live-updating TUI showing each stage's current status; exits on completion |
 
+`pipelines list --output json` always returns a JSON array on success, including
+`[]` with exit code 0 when the project has no pipelines. Empty `table` and `plain`
+output retains the existing human-readable message. API failures still return a
+non-zero exit code; they are not converted into an empty list.
+
 #### `analyze` sample output
 
 ```

@@ -32,6 +32,9 @@ the service client and that a newer request survives an older cancelled response
 Retention also runs with a deliberately delayed schema. The script waits for the
 parameter form before editing and the catalog before reopening, retaining the
 original value and selection assertions without increasing the timeout.
+Catalog setup also runs with delayed project loading. Shared setup and option
+journeys wait for the project picker, filtered scope and catalog before sending
+dependent input; capture deadlines and functional assertions remain unchanged.
 
 Refinement regressions check visible recovery after an invalid profile, adaptive
 catalog search styles and Portuguese type labels without changing YAML types.

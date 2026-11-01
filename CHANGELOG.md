@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--org`, `--project` global flags; `AZDO_PAT`/`AZDO_ORG` env var support
 
 ### Changed
+- Native QA waits for project/catalog readiness before dependent keys, with a delayed-project setup regression covering shared consumers.
 - Retention QA waits for the asynchronous parameter form and saved catalog state before editing/reopening; a slow-schema scenario reproduces the timing boundary.
 - CI native checks, vulnerability scanning and snapshot packaging use Go 1.27.3 to include the standard-library security fixes.
 - Empty `pipelines list --output json` results return `[]` with exit code 0; table/plain messages and populated JSON remain unchanged.

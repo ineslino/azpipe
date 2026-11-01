@@ -274,8 +274,11 @@ def many_options(t):
 
 def long_options(t):
     t.send("\r", .8)
+    t.capture("projects", ("ESCOLHER PROJECTO", "project-00"))
     t.send("/id-00\r")
+    t.capture("project-filtered", ("1–1 / 1", "project-00"))
     t.send("\r", .8)
+    t.capture("catalog", ("PIPELINES", "fixture pipeline", "Projecto: project-00"))
     t.send("e", .8)
     t.capture("parameters", ("Ambiente", "predefinido pela pipeline"))
     t.send("\x1bOQ")
@@ -318,6 +321,7 @@ def recovery(t):
 
 def long_context(t):
     t.send("\r", .8)
+    t.capture("projects", ("ESCOLHER PROJECTO", "project-00"))
     t.send("\r", .8)
     t.capture("catalog-target", ("Projecto: project-00", "fixture pipeline"))
     t.send(" ")
@@ -374,11 +378,18 @@ def catalog_navigation(t):
     focused_id("restored", 500)
     t.finish(":q", True)
 
+def catalog_setup(t):
+    fixture_catalog(t)
+    t.finish(":q", True)
+
 def context_retention(t):
     fixture_catalog(t)
     t.send(" ")
     t.send("e", .8)
+    # The schema loads asynchronously; editing shortcuts require the form to be ready.
+    t.capture("default-ready", ("Etiqueta", "Valor: alpha beta"))
     t.send("\x17\x13")  # Ctrl+W edits a default; Ctrl+S must send that visible value.
+    t.capture("parameters-saved", ("PIPELINES", "[x]"))
     t.send("e", .8)
     t.capture("edited-default", ("valor personalizado", "Valor: alpha"), ("beta",))
     t.send("\x1b", .35)
@@ -439,6 +450,8 @@ scenario("command-history-80", ["demo"], command_history)
 scenario("command-branches-80", ["branches", "--demo"], command_branches)
 scenario("command-pending-read-80", ["--org", "fixture-org"], command_pending_read, mode="slow-projects")
 scenario("context-retain-80", ["--org", "fixture-org", "--project", "project-00"], context_retention, mode="continuity")
+scenario("catalog-setup-slow-projects-80", ["--org", "fixture-org", "--project", "project-00"], catalog_setup, mode="slow-projects")
+scenario("context-retain-slow-schema-80", ["--org", "fixture-org", "--project", "project-00"], context_retention, mode="slow-schema")
 scenario("cancel-schema-80", ["--org", "fixture-org", "--project", "project-00"], schema_cancellation, mode="slow-schema")
 scenario("profile-recovery-80", ["--org", "fixture-org", "--project", "project-00"], profile_recovery)
 print(json.dumps(results))

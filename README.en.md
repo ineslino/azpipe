@@ -108,6 +108,8 @@ CLI example, preview only, using a selection file prepared as described in the g
 
 Profiles store parameters in plaintext. Never include secrets. Leaving monitoring does not cancel accepted runs; submissions without an ID remain uncertain and are never retried automatically.
 
+For automation, `azpipe pipelines list --output json` returns `[]` when no pipelines exist, with exit code 0. The `table` and `plain` formats retain the empty-list message.
+
 ## Architecture and validation
 
 `cmd` connects the CLI to services in `internal/runner`; `internal/azdo` handles the API and contracts. The TUI lives in `internal/tui/runner`, separate from execution logic. `internal/analysis` and `internal/ui` support analysis and display.

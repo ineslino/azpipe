@@ -29,6 +29,10 @@ cancelling a slow schema read before reopening it. Each scenario uses its own lo
 data directory. Model regressions additionally verify that reauthentication replaces
 the service client and that a newer request survives an older cancelled response.
 
+Retention also runs with a deliberately delayed schema. The script waits for the
+parameter form before editing and the catalog before reopening, retaining the
+original value and selection assertions without increasing the timeout.
+
 Refinement regressions check visible recovery after an invalid profile, adaptive
 catalog search styles and Portuguese type labels without changing YAML types.
 Review checks cover one and thirty rows, pending/ready/blocked/demo states, resize

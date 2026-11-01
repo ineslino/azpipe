@@ -90,6 +90,7 @@ Usa `AZDO_PAT` injectado pelo teu mecanismo de credenciais e `AZDO_ORG` para o c
 | `a` / `?` | Menu de acções e ajuda, com descrições e motivos de indisponibilidade |
 | `A` | Seleccionar todas as pipelines visíveis |
 | Setas / `j` / `k` | Navegar |
+| `PgUp` / `PgDn` / `Home` / `End` | Mudar de página / ir aos extremos do catálogo filtrado, fora da edição de campos |
 | `/` / espaço | Filtrar / seleccionar; Esc conserva o filtro e Ctrl+U limpa durante a pesquisa |
 | `d` | Detalhe completo da pipeline; setas percorrem e Esc regressa |
 | `m` / `P` / `R` | Alternar modo / PLAN para selecção / RUN para selecção |

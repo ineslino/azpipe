@@ -30,6 +30,7 @@ go run . demo
 
 1. Abre `a` ou `?` para descobrir acções com descrições. Setas escolhem, Enter abre e Esc volta. Usa as setas e espaço na lista para seleccionar pipelines.
 2. Experimenta `/` para filtrar; Enter termina a edição.
+   Fora da edição, `Home`/`End` vai à primeira/última pipeline filtrada e `PgUp`/`PgDn` muda de página, sem alterar a selecção.
 3. Numa pipeline seleccionada com contrato, `m` alterna RUN/PLAN.
 4. `e` abre parâmetros fictícios; Tab navega e Ctrl+S guarda na sessão.
 5. Enter abre a revisão de exemplo. Outro Enter mostra um exemplo estático de acompanhamento, sem executar a selecção. Esc regressa ao catálogo mantendo a selecção.
@@ -46,6 +47,10 @@ A marca permanece compacta durante o trabalho. `d` abre os metadados completos d
 Run `go run . demo` from the checkout in an interactive terminal (Go 1.26.3+, at least 80×24). Use arrows and Space to select, `/` to filter, `m` for RUN/PLAN on a selected contracted pipeline, and `e` for fixture parameters (Tab to move, Ctrl+S to save). Enter opens review; another Enter shows a static fictional batch, independent of your selection. Esc returns and preserves the selection. Profiles (`s`/`l`) are memory-only; `h` also opens fictional history. Press `B` for branches, Esc to return to the catalog from the branch list, and `:q` to quit explicitly; plain `q` only stays in the current screen.
 
 No Azure DevOps client, credentials, network calls or profile files are involved. Press `a` or `?` to discover actions, use arrows and Enter, and Esc to return. Branding stays compact. `d` opens pipeline metadata; `?` opens branch help. The final recording frame is an editorial end card, not an application screen. `NO_COLOR` is respected.
+
+Outside field editing, use `Home`/`End` for the first/last filtered pipeline and
+`PgUp`/`PgDn` to page without changing the selection. The three demo pipelines fit
+one page; the native QA adapter additionally exercises a 500-pipeline catalog.
 
 ## Imagens / Images
 

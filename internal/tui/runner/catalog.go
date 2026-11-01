@@ -170,6 +170,11 @@ func (m CatalogModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	pageSize := 0
+	// Measure the displayed page before navigation clears its transient notice.
+	if msg.String() == "pgup" || msg.String() == "pgdown" {
+		pageSize = m.catalogCapacity()
+	}
 	m.notice = ""
 	switch msg.String() {
 	case "ctrl+c":
@@ -246,6 +251,17 @@ func (m CatalogModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.clampCursor()
 	case "down", "j":
 		m.cursor++
+		m.clampCursor()
+	case "pgup":
+		m.cursor -= pageSize
+		m.clampCursor()
+	case "pgdown":
+		m.cursor += pageSize
+		m.clampCursor()
+	case "home":
+		m.cursor = 0
+	case "end":
+		m.cursor = len(m.visible) - 1
 		m.clampCursor()
 	case " ":
 		if pipeline, ok := m.active(); ok {

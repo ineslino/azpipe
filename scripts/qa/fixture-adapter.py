@@ -25,7 +25,9 @@ if (area, resource) == ("core", "projects"):
 elif (area, resource) == ("build", "definitions"):
     if os.environ.get("AZPIPE_FIXTURE_MODE") == "slow-pipelines":
         time.sleep(2)
-    if mode in schema_modes and any(a.startswith("definitionId=") for a in args):
+    if mode == "catalog-navigation":
+        print(json.dumps({"value": [{"id": i, "name": "fixture pipeline %04d %s" % (i, "target" if i % 2 else "other"), "path": "\\fixture", "repository": {"name": "fixture-repo"}} for i in range(1, 501)]}))
+    elif mode in schema_modes and any(a.startswith("definitionId=") for a in args):
         if mode == "slow-schema":
             time.sleep(2)
         print(json.dumps({"revision": 7, "repository": {"id": "fixture-repo", "type": "TfsGit"}, "process": {"yamlFilename": "/fixture.yml"}}))

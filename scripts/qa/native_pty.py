@@ -121,7 +121,15 @@ class Terminal:
     def cleanup(self):
         if not self.done:
             os.kill(self.pid, signal.SIGTERM)
-            os.waitpid(self.pid, 0)
+            deadline = time.monotonic()+1
+            while time.monotonic() < deadline:
+                pid, _ = os.waitpid(self.pid, os.WNOHANG)
+                if pid: break
+                self.read(.05)
+            else:
+                # A failed fixture must not hang cleanup while its terminal output is full.
+                os.kill(self.pid, signal.SIGKILL)
+                os.waitpid(self.pid, 0)
             os.close(self.fd)
 
 def scenario(name, args, task, **kwargs):
@@ -327,6 +335,49 @@ def fixture_catalog(t):
     t.send("\r", .8)
     t.capture("catalog", ("fixture pipeline", "Projecto: project-00"))
 
+def catalog_navigation(t):
+    fixture_catalog(t)
+    def focused_id(suffix, expected):
+        deadline = time.monotonic()+5
+        while time.monotonic() < deadline:
+            current = "\n".join("".join(row) for row in t.lines)
+            focused = re.search(r">\[[ x]\]\s*│\s*\S+\s*│\s*(\d+)", current)
+            if focused and int(focused.group(1)) == expected: break
+            t.read(.1)
+        view = t.capture(suffix, ("PIPELINES", "a ou ?"))
+        row = next((line for line in view.splitlines() if ">[" in line), "")
+        assert row, (t.name, suffix, "missing focused pipeline", view)
+        actual = int(row.split("│")[3].strip())
+        assert actual == expected, (t.name, suffix, "focused ID", actual, expected)
+        return view
+    view = focused_id("first", 1)
+    capacity = int(re.search(r"PIPELINES 1–(\d+) / 500", view).group(1))
+    t.send("a\x1b[B")
+    help_view = t.capture("navigation-help", ("Home/End", "PgUp/PgDn"))
+    assert "Fora da pesquisa:" in " ".join(help_view.replace("│", " ").split()), (t.name, "missing navigation context", help_view)
+    t.send("\x1b", .35)
+    t.send(" ")
+    t.send("\x1b[6~")
+    focused_id("next-page", 1+capacity)
+    t.send("\x1b[5~")
+    focused_id("previous-page", 1)
+    t.send("\x1b[F")
+    focused_id("last", 500)
+    t.send("\x1b[6~")
+    focused_id("last-clamped", 500)
+    t.resize(80, 24)
+    focused_id("resized", 500)
+    t.send("/target\r\x1b[F")
+    focused_id("filtered-last", 499)
+    t.send("\x1b[H")
+    focused_id("filtered-first", 1)
+    t.capture("selection-retained", ("[x]", "1 seleccionada"))
+    t.send("/\x15missing\r\x1b[F\x1b[6~\x1b[5~\x1b[H")
+    t.capture("empty", ("Nenhuma pipeline encontrada", "1 oculta pelo filtro"))
+    t.send("/\x15\r\x1b[F")
+    focused_id("restored", 500)
+    t.finish(":q", True)
+
 def catalog_setup(t):
     fixture_catalog(t)
     t.finish(":q", True)
@@ -386,6 +437,7 @@ for width, height, plain in ((60, 24, False), (80, 24, False), (120, 40, True)):
     suffix = str(width) + ("-plain" if plain else "")
     scenario("context-"+suffix, ["--org", "fixture-org", "--project", "project-00"], context_flow, width=width, height=height, plain=plain)
     scenario("catalog-"+suffix, ["demo"], catalog_flow, width=width, height=height, plain=plain)
+    scenario("catalog-navigation-"+suffix, ["--org", "fixture-org", "--project", "project-00"], catalog_navigation, mode="catalog-navigation", width=width, height=height, plain=plain)
     scenario("branches-"+suffix, ["branches", "--demo"], branch_flow, width=width, height=height, plain=plain)
 scenario("cancel-projects", ["--org", "fixture-org"], cancellation, mode="slow-projects")
 scenario("auth-recovery", ["--org", "fixture-org"], recovery, mode="identity-error")

@@ -109,6 +109,8 @@ Exemplo CLI, apenas preview de um ficheiro de selecção preparado conforme o gu
 
 Perfis guardam parâmetros em texto simples. Nunca incluas segredos. Sair da monitorização não cancela runs aceites; submissões sem ID ficam incertas e nunca são repetidas automaticamente.
 
+Para automação, `azpipe pipelines list --output json` devolve `[]` quando não há pipelines, com exit 0. Os formatos `table` e `plain` mantêm a mensagem de lista vazia.
+
 ## Arquitectura e validação
 
 `cmd` liga a CLI aos serviços em `internal/runner`; `internal/azdo` trata a API e os contratos. A TUI vive em `internal/tui/runner`, separada da lógica de execução. `internal/analysis` e `internal/ui` suportam análise e visualização.

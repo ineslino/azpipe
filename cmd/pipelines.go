@@ -85,6 +85,9 @@ func runPipelinesList(_ *cobra.Command, _ []string) error {
 	}
 
 	if len(pipelines) == 0 {
+		if flagOutput == "json" {
+			return json.NewEncoder(os.Stdout).Encode([]any{})
+		}
 		fmt.Printf("No pipelines found in project %q.\n", proj)
 		return nil
 	}
